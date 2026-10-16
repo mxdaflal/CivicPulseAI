@@ -111,13 +111,48 @@ export default function CitizenDashboardPage() {
     }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLatitude(pos.coords.latitude);
-        setLongitude(pos.coords.longitude);
-        const coords = `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
-        setLocationText((prev) => (prev ? `${prev} (${coords})` : coords));
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setLatitude(lat);
+        setLongitude(lng);
+        toast.success('Location captured. Looking up address...');
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+            { headers: { 'Accept-Language': 'en' } }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const a = data.address || {};
+            const parts: string[] = [];
+            const road = a.road || a.pedestrian || a.footway || a.cycleway || a.path;
+            const houseNumber = a.house_number;
+            const village = a.village || a.hamlet || a.suburb || a.neighbourhood || a.town || a.city_district || a.county;
+            const district = a.state_district || a.county || a.city;
+            const pincode = a.postcode;
+            const state = a.state || a.province;
+            const country = a.country;
+
+            if (road) parts.push(houseNumber ? `${houseNumber} ${road}` : road);
+            if (village) parts.push(village);
+            if (district) parts.push(district);
+            if (pincode) parts.push(pincode);
+            if (state) parts.push(state);
+            if (country && country !== state) parts.push(country);
+
+            const addressText = parts.length > 0 ? parts.join(', ') : data.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+            setLocationText(addressText);
+            toast.success('Address found from your location.');
+          } else {
+            setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+            toast.success('Location captured (address lookup unavailable).');
+          }
+        } catch {
+          setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+          toast.success('Location captured (address lookup failed).');
+        }
         setLocating(false);
-        toast.success('Location captured.');
       },
       (err) => {
         setLocating(false);

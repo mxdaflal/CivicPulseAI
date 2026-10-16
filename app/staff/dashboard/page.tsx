@@ -7,8 +7,12 @@ import {
   Loader2, Shield, LogOut, FileText, Search, Filter, AlertCircle,
   CheckCircle2, Clock, TrendingUp, MapPin, ChevronRight, Eye,
   Droplets, Trash2, Construction, Waves, Lightbulb, Bus,
-  AlertTriangle, Calendar, Building2, Timer,
+  AlertTriangle, Calendar, Building2, Timer, X, Image as ImageIcon, Brain, Sparkles,
 } from 'lucide-react';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -16,7 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { supabase, Report, Incident, Department, Profile } from '@/lib/supabase-client';
+import { supabase, Report, Incident, Department, Profile, AIAnalysis } from '@/lib/supabase-client';
 import { useAuth } from '@/components/auth-provider';
 import { STATUS_CONFIG, PRIORITY_CONFIG, CATEGORY_COLORS, CATEGORY_ICONS, INCIDENT_STATUSES, STATUS_TRANSITIONS } from '@/lib/constants';
 import { generateTrackingId, analyzeReport } from '@/lib/ai-analysis';
@@ -44,6 +48,10 @@ export default function StaffDashboardPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [stats, setStats] = useState({ open: 0, verified: 0, inProgress: 0, resolved: 0, pending: 0, overdue: 0 });
+  const [detailReport, setDetailReport] = useState<Report | null>(null);
+  const [detailAiAnalysis, setDetailAiAnalysis] = useState<AIAnalysis | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const isStaff = profile && STAFF_ROLES.includes(profile.role);
 
@@ -95,8 +103,28 @@ export default function StaffDashboardPage() {
     if (isStaff) fetchData();
   }, [isStaff, fetchData]);
 
+  const openReportDetail = async (report: Report) => {
+    setDetailReport(report);
+    setDetailAiAnalysis(null);
+    setLoadingDetail(true);
+    try {
+      const { data } = await supabase
+        .from('ai_analyses')
+        .select('*')
+        .eq('report_id', report.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) setDetailAiAnalysis(data as AIAnalysis);
+    } catch {
+      // AI analysis is optional
+    }
+    setLoadingDetail(false);
+  };
+
   const handleVerifyReport = async (report: Report) => {
     if (!user) return;
+    setActionLoading(true);
     try {
       const analysis = analyzeReport(report.title, report.description || '', report.location_text, report.category_name);
 
@@ -138,10 +166,12 @@ export default function StaffDashboardPage() {
       });
 
       toast.success('Report verified and incident created.');
+      setDetailReport(null);
       fetchData();
     } catch (err: any) {
       toast.error(err.message || 'Failed to verify report.');
     }
+    setActionLoading(false);
   };
 
   const handleStatusChange = async (incident: Incident, newStatus: string) => {
@@ -222,14 +252,17 @@ export default function StaffDashboardPage() {
 
   const handleRejectReport = async (report: Report) => {
     if (!user) return;
+    setActionLoading(true);
     try {
       const { error } = await supabase.from('reports').update({ status: 'rejected' }).eq('id', report.id);
       if (error) throw error;
       toast.success('Report rejected.');
+      setDetailReport(null);
       fetchData();
     } catch (err: any) {
       toast.error('Failed to reject report.');
     }
+    setActionLoading(false);
   };
 
   const isAdmin = profile?.role === 'admin';
@@ -320,7 +353,7 @@ export default function StaffDashboardPage() {
                     const CatIcon = categoryIcons[report.category_name] || AlertCircle;
                     const priorityConfig = PRIORITY_CONFIG[report.priority_label];
                     return (
-                      <div key={report.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+                      <div key={report.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 hover:border-blue-300 transition-colors cursor-pointer" onClick={() => openReportDetail(report)}>
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <div className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0" style={{ backgroundColor: `${color}15` }}>
                             <CatIcon className="h-4 w-4" style={{ color }} />
@@ -340,11 +373,11 @@ export default function StaffDashboardPage() {
                             {priorityConfig.label}
                           </span>
                         )}
-                        <Button size="sm" onClick={() => handleVerifyReport(report)} className="shrink-0 gap-1.5">
-                          Verify <ChevronRight className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleRejectReport(report)} className="shrink-0 text-red-600 border-red-200 hover:bg-red-50">
-                          Reject
+                        {report.photo_url && (
+                          <ImageIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
+                        <Button size="sm" onClick={(e) => { e.stopPropagation(); openReportDetail(report); }} className="shrink-0 gap-1.5">
+                          Review <ChevronRight className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     );
@@ -634,6 +667,185 @@ export default function StaffDashboardPage() {
           </Card>
         </div>
       </div>
+
+      {/* Report Detail Modal */}
+      <Dialog open={!!detailReport} onOpenChange={(open) => { if (!open) setDetailReport(null); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden p-0">
+          {detailReport && (
+            <>
+              <DialogHeader className="px-6 pt-6 pb-2 border-b border-border">
+                <DialogTitle className="text-lg text-navy flex items-center gap-2">
+                  {(() => {
+                    const CatIcon = categoryIcons[detailReport.category_name] || AlertCircle;
+                    const color = CATEGORY_COLORS[detailReport.category_name] || '#3b82f6';
+                    return (
+                      <>
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0" style={{ backgroundColor: `${color}15` }}>
+                          <CatIcon className="h-4 w-4" style={{ color }} />
+                        </div>
+                        {detailReport.title}
+                      </>
+                    );
+                  })()}
+                </DialogTitle>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                  <span className="font-mono">{detailReport.tracking_id}</span>
+                  <span>·</span>
+                  <span>{detailReport.category_name}</span>
+                  <span>·</span>
+                  <span>{new Date(detailReport.created_at).toLocaleString()}</span>
+                </div>
+              </DialogHeader>
+
+              <ScrollArea className="max-h-[55vh] px-6 py-4">
+                <div className="space-y-4">
+                  {/* Priority + Status badges */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {(() => {
+                      const priorityConfig = PRIORITY_CONFIG[detailReport.priority_label];
+                      const statusConfig = STATUS_CONFIG[detailReport.status];
+                      return (
+                        <>
+                          {priorityConfig && (
+                            <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ color: priorityConfig.color, backgroundColor: priorityConfig.bg }}>
+                              {priorityConfig.label} Priority
+                            </span>
+                          )}
+                          {statusConfig && (
+                            <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ color: statusConfig.color, backgroundColor: statusConfig.bg }}>
+                              {statusConfig.label}
+                            </span>
+                          )}
+                          {detailReport.ai_processed && (
+                            <span className="rounded-full px-2.5 py-1 text-xs font-semibold bg-blue-100 text-blue-700">
+                              AI Processed
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-navy mb-1">Description</h4>
+                    <p className="text-sm text-foreground leading-relaxed">{detailReport.description || 'No description provided.'}</p>
+                  </div>
+
+                  {/* Location */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-navy mb-1 flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5" /> Location
+                    </h4>
+                    <p className="text-sm text-muted-foreground">{detailReport.location_text || 'No location specified.'}</p>
+                    {detailReport.latitude && detailReport.longitude && (
+                      <a
+                        href={`https://www.openstreetmap.org/?mlat=${detailReport.latitude}&mlon=${detailReport.longitude}#map=18/${detailReport.latitude}/${detailReport.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline mt-1 inline-block"
+                      >
+                        View on map ({detailReport.latitude.toFixed(5)}, {detailReport.longitude.toFixed(5)})
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Photo */}
+                  {detailReport.photo_url && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-navy mb-1 flex items-center gap-1.5">
+                        <ImageIcon className="h-3.5 w-3.5" /> Evidence Photo
+                      </h4>
+                      <img
+                        src={detailReport.photo_url}
+                        alt="Report evidence"
+                        className="rounded-lg border border-border max-h-64 object-cover w-full"
+                      />
+                    </div>
+                  )}
+
+                  {/* AI Analysis */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-navy mb-1 flex items-center gap-1.5">
+                      <Brain className="h-3.5 w-3.5" /> AI Analysis
+                    </h4>
+                    {loadingDetail ? (
+                      <div className="flex items-center gap-2 py-3">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">Loading analysis...</span>
+                      </div>
+                    ) : detailAiAnalysis ? (
+                      <div className="rounded-lg border border-border bg-blue-50/30 p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          {detailAiAnalysis.model_version?.includes('openai') ? (
+                            <><Sparkles className="h-3.5 w-3.5 text-blue-600" /><span className="text-xs font-semibold text-blue-600">AI-Powered Analysis</span></>
+                          ) : (
+                            <><Brain className="h-3.5 w-3.5 text-muted-foreground" /><span className="text-xs font-semibold text-muted-foreground">Basic Analysis</span></>
+                          )}
+                          <span className="text-xs text-muted-foreground ml-auto">{detailAiAnalysis.model_version}</span>
+                        </div>
+                        <p className="text-sm text-foreground leading-relaxed">{detailAiAnalysis.explanation || 'No explanation available.'}</p>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <div className="text-xs">
+                            <span className="text-muted-foreground">Suggested Category: </span>
+                            <span className="font-medium">{detailAiAnalysis.suggested_category || 'N/A'}</span>
+                          </div>
+                          <div className="text-xs">
+                            <span className="text-muted-foreground">Confidence: </span>
+                            <span className="font-medium">{detailAiAnalysis.confidence != null ? `${Math.round(detailAiAnalysis.confidence * 100)}%` : 'N/A'}</span>
+                          </div>
+                          <div className="text-xs">
+                            <span className="text-muted-foreground">Priority Score: </span>
+                            <span className="font-medium">{detailAiAnalysis.priority_score}</span>
+                          </div>
+                          <div className="text-xs">
+                            <span className="text-muted-foreground">Priority Label: </span>
+                            <span className="font-medium capitalize">{detailAiAnalysis.priority_label || 'N/A'}</span>
+                          </div>
+                        </div>
+                        {detailAiAnalysis.priority_factors && (
+                          <div className="flex gap-3 mt-2 text-xs">
+                            {(Object.entries(detailAiAnalysis.priority_factors) as [string, number][]).map(([key, val]) => (
+                              <span key={key} className="text-muted-foreground">
+                                {key.charAt(0).toUpperCase() + key.slice(1)}: <span className="font-medium text-navy">{val}/100</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No AI analysis available for this report.</p>
+                    )}
+                  </div>
+                </div>
+              </ScrollArea>
+
+              {/* Action Footer */}
+              <DialogFooter className="px-6 py-4 border-t border-border gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => handleRejectReport(detailReport)}
+                  disabled={actionLoading}
+                  className="text-red-600 border-red-200 hover:bg-red-50"
+                >
+                  Reject Report
+                </Button>
+                <Button
+                  onClick={() => handleVerifyReport(detailReport)}
+                  disabled={actionLoading}
+                  className="gap-2 bg-green-600 hover:bg-green-700"
+                >
+                  {actionLoading ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Processing...</>
+                  ) : (
+                    <><CheckCircle2 className="h-4 w-4" /> Verify & Create Incident</>
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
