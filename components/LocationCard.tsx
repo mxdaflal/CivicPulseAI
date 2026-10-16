@@ -1,54 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { MapPin, Loader2, Navigation, Building2, Hash } from 'lucide-react';
+import { useState } from 'react';
+import { MapPin, Loader2, Navigation } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { reverseGeocode, type AddressParts } from '@/lib/geocode';
 
-type LocationData = {
-  streetNumber?: string;
-  street?: string;
-  area?: string;
-  village?: string;
-  place?: string;
-  district?: string;
-  pincode?: string;
-  displayName?: string;
-  lat: number;
-  lon: number;
-};
-
-const DEFAULT_LOCATION: LocationData = {
+const DEFAULT_LOCATION: AddressParts = {
   lat: 10.8087,
   lon: 78.7491,
+  fullAddress: '',
 };
-
-function extractLocationData(json: any, lat: number, lon: number): LocationData {
-  const a = json.address || {};
-  return {
-    streetNumber: a.house_number || '',
-    street: a.road || a.pedestrian || a.footway || '',
-    area: a.suburb || a.neighbourhood || a.quarter || '',
-    village: a.village || a.town || a.hamlet || '',
-    place: a.place || a.city || '',
-    district: a.county || a.state_district || a.district || '',
-    pincode: a.postcode || '',
-    displayName: json.display_name || '',
-    lat,
-    lon,
-  };
-}
-
-async function reverseGeocode(lat: number, lon: number): Promise<LocationData> {
-  const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`;
-  const res = await fetch(url, {
-    headers: { 'Accept-Language': 'en' },
-  });
-  if (!res.ok) throw new Error(`Geocoding failed (${res.status})`);
-  const json = await res.json();
-  return extractLocationData(json, lat, lon);
-}
 
 function LocationField({ label, value }: { label: string; value: string | undefined }) {
   if (!value) return null;
@@ -61,8 +24,7 @@ function LocationField({ label, value }: { label: string; value: string | undefi
 }
 
 export function LocationCard() {
-  const [location, setLocation] = useState<LocationData>(DEFAULT_LOCATION);
-  const [loading, setLoading] = useState(false);
+  const [location, setLocation] = useState<AddressParts>(DEFAULT_LOCATION);
   const [locating, setLocating] = useState(false);
   const [isLive, setIsLive] = useState(false);
 
@@ -131,7 +93,7 @@ export function LocationCard() {
           </span>
         </div>
 
-        {loading ? (
+        {locating ? (
           <div className="flex items-center justify-center py-6">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             <span className="ml-2 text-sm text-muted-foreground">Fetching address...</span>
@@ -140,11 +102,10 @@ export function LocationCard() {
           <div className="rounded-lg border border-border bg-secondary/30 p-4 space-y-0.5">
             <LocationField label="Street Number" value={location.streetNumber} />
             <LocationField label="Street / Road" value={location.street} />
-            <LocationField label="Area / Locality" value={location.area} />
             <LocationField label="Village" value={location.village} />
-            <LocationField label="Place" value={location.place} />
             <LocationField label="District" value={location.district} />
-            <LocationField label="PIN Code" value={location.pincode} />
+            <LocationField label="Village PIN Code" value={location.pincode} />
+            <LocationField label="State" value={location.state} />
           </div>
         )}
 

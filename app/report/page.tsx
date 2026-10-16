@@ -30,6 +30,7 @@ import { supabase, Category } from '@/lib/supabase-client';
 import { useAuth } from '@/components/auth-provider';
 import { generateTrackingId, analyzeReport, type AIAnalysisResult } from '@/lib/ai-analysis';
 import { CATEGORY_ICONS, CATEGORY_COLORS, PRIORITY_CONFIG } from '@/lib/constants';
+import { reverseGeocode, formatAddress } from '@/lib/geocode';
 import { cn } from '@/lib/utils';
 
 const categoryIcons: Record<string, any> = {
@@ -107,15 +108,22 @@ export default function ReportPage() {
     }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         setLatitude(lat);
         setLongitude(lng);
-        const coords = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-        setLocationText((prev) => prev ? `${prev} (${coords})` : coords);
+        toast.success('Location captured. Looking up address...');
+        try {
+          const parts = await reverseGeocode(lat, lng);
+          const addressText = formatAddress(parts);
+          setLocationText(addressText);
+          toast.success('Address found from your location.');
+        } catch {
+          setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+          toast.success('Location captured (address lookup unavailable).');
+        }
         setLocating(false);
-        toast.success('Location captured successfully.');
       },
       (err) => {
         setLocating(false);
