@@ -1,0 +1,52 @@
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+};
+
+export default async (req: Request): Promise<Response> => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 200, headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(req.url);
+    const lat = url.searchParams.get("lat");
+    const lon = url.searchParams.get("lon");
+
+    if (!lat || !lon) {
+      return new Response(
+        JSON.stringify({ error: "Missing lat or lon parameters" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const geoUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=18&addressdetails=1`;
+
+    const geoRes = await fetch(geoUrl, {
+      headers: {
+        "User-Agent": "CivicPulseAI/1.0 (civic-pulse-app)",
+        "Accept-Language": "en",
+        "Accept": "application/json",
+      },
+    });
+
+    if (!geoRes.ok) {
+      return new Response(
+        JSON.stringify({ error: `Geocoding failed (${geoRes.status})` }),
+        { status: geoRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const data = await geoRes.json();
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ error: "Geocoding request failed" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+};

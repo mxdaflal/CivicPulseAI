@@ -12,15 +12,26 @@ export type AddressParts = {
 };
 
 export async function reverseGeocode(lat: number, lon: number): Promise<AddressParts> {
-  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing Supabase configuration');
+  }
+
+  const url = `${supabaseUrl}/functions/v1/geocode?lat=${lat}&lon=${lon}`;
   const res = await fetch(url, {
     headers: {
-      'Accept-Language': 'en',
-      'Accept': 'application/json',
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+      'Content-Type': 'application/json',
     },
   });
+
   if (!res.ok) throw new Error(`Geocoding failed (${res.status})`);
   const json = await res.json();
+
+  if (json.error) throw new Error(json.error);
+
   const a = json.address || {};
 
   return {

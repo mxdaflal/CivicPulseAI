@@ -1,2 +1,5 @@
 [functions.ai-analyze]
 verify_jwt = false
+
+[functions.geocode]
+verify_jwt = false
