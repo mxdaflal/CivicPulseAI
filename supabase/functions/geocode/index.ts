@@ -4,7 +4,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-export default async (req: Request): Promise<Response> => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
@@ -32,6 +32,8 @@ export default async (req: Request): Promise<Response> => {
     });
 
     if (!geoRes.ok) {
+      const errText = await geoRes.text();
+      console.error(`Nominatim API error ${geoRes.status}: ${errText}`);
       return new Response(
         JSON.stringify({ error: `Geocoding failed (${geoRes.status})` }),
         { status: geoRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -44,9 +46,10 @@ export default async (req: Request): Promise<Response> => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
+    console.error("Geocode error:", err);
     return new Response(
       JSON.stringify({ error: "Geocoding request failed" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-};
+});

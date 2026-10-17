@@ -87,8 +87,10 @@ function fallbackAnalysis(req: AnalysisRequest): AIResult {
 async function openAIAnalysis(req: AnalysisRequest): Promise<AIResult> {
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) {
+    console.log("OPENAI_API_KEY not set, using fallback analysis");
     return fallbackAnalysis(req);
   }
+  console.log("OPENAI_API_KEY found, calling OpenAI API...");
 
   const systemPrompt = `You are an AI analyst for CIVIC PULSE AI, a civic incident intelligence platform.
 Analyze the following citizen report about a public-service problem.
