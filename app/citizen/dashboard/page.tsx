@@ -121,11 +121,16 @@ export default function CitizenDashboardPage() {
         try {
           const parts = await reverseGeocode(lat, lng);
           const addressText = formatAddress(parts);
-          setLocationText(addressText);
-          toast.success('Address found from your location.');
+          if (addressText && !addressText.match(/^\d+\.\d+,/)) {
+            setLocationText(addressText);
+            toast.success('Address found: ' + addressText);
+          } else {
+            setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+            toast.error('Could not determine street address. Please enter the location manually.');
+          }
         } catch {
           setLocationText(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-          toast.success('Location captured (address lookup unavailable).');
+          toast.error('Address lookup failed. Please enter the location manually.');
         }
         setLocating(false);
       },

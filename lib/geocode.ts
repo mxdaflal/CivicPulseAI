@@ -11,41 +11,80 @@ export type AddressParts = {
   lon: number;
 };
 
-export async function reverseGeocode(lat: number, lon: number): Promise<AddressParts> {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+async function reverseGeocodePrimary(lat: number, lon: number): Promise<AddressParts> {
+  const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Primary geocoding failed (${res.status})`);
+  const data = await res.json();
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase configuration');
-  }
+  const street = data.streetName || data.locality || data.principalLocality || '';
+  const village = data.city || data.locality || data.principalLocality || data.subLocality || '';
+  const district = data.principalSubdivision || data.localityInfo?.administrative?.[0]?.name || '';
+  const state = data.principalSubdivision || '';
+  const country = data.countryName || '';
+  const pincode = data.postcode || '';
 
-  const url = `${supabaseUrl}/functions/v1/geocode?lat=${lat}&lon=${lon}`;
-  const res = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${supabaseAnonKey}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!res.ok) throw new Error(`Geocoding failed (${res.status})`);
-  const json = await res.json();
-
-  if (json.error) throw new Error(json.error);
-
-  const a = json.address || {};
+  const fullAddress = [street, village, district, state, country].filter(Boolean).join(', ');
 
   return {
-    streetNumber: a.house_number || '',
-    street: a.road || a.pedestrian || a.footway || a.cycleway || a.path || '',
-    village: a.village || a.hamlet || a.suburb || a.neighbourhood || a.town || a.city_district || a.quarter || '',
-    district: a.state_district || a.county || a.district || a.city || '',
-    pincode: a.postcode || '',
-    state: a.state || a.province || '',
-    country: a.country || '',
-    fullAddress: json.display_name || '',
+    streetNumber: data.houseNumber || '',
+    street,
+    village,
+    district,
+    pincode,
+    state,
+    country,
+    fullAddress: fullAddress || data.locality || '',
     lat,
     lon,
   };
+}
+
+async function reverseGeocodeFallback(lat: number, lon: number): Promise<AddressParts> {
+  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
+  const res = await fetch(url, {
+    headers: {
+      'Accept-Language': 'en',
+      'Accept': 'application/json',
+    },
+  });
+  if (!res.ok) throw new Error(`Fallback geocoding failed (${res.status})`);
+  const json = await res.json();
+  const a = json.address || {};
+
+  const street = a.road || a.pedestrian || a.footway || a.cycleway || a.path || '';
+  const village = a.village || a.hamlet || a.suburb || a.neighbourhood || a.town || a.city_district || a.quarter || '';
+  const district = a.state_district || a.county || a.district || a.city || '';
+  const state = a.state || a.province || '';
+  const country = a.country || '';
+  const pincode = a.postcode || '';
+
+  const fullAddress = json.display_name || '';
+
+  return {
+    streetNumber: a.house_number || '',
+    street,
+    village,
+    district,
+    pincode,
+    state,
+    country,
+    fullAddress,
+    lat,
+    lon,
+  };
+}
+
+export async function reverseGeocode(lat: number, lon: number): Promise<AddressParts> {
+  try {
+    return await reverseGeocodePrimary(lat, lon);
+  } catch {
+    try {
+      return await reverseGeocodeFallback(lat, lon);
+    } catch {
+      throw new Error('All geocoding services failed');
+    }
+  }
 }
 
 export function formatAddress(parts: AddressParts): string {

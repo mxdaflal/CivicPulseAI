@@ -33,9 +33,16 @@ export function LocationCard() {
       const data = await reverseGeocode(lat, lon);
       setLocation(data);
       setIsLive(live);
-    } catch {
+      const hasAddress = data.street || data.village || data.district || data.state || data.fullAddress;
+      if (hasAddress) {
+        toast.success('Live location updated with address details.');
+      } else {
+        toast.success('Location updated, but no address details found for this area.');
+      }
+    } catch (err) {
       setLocation((prev) => ({ ...prev, lat, lon }));
-      toast.error('Could not fetch address details for this location.');
+      setIsLive(live);
+      toast.error('Could not fetch address for this location. Please enter it manually.');
     }
   };
 
@@ -49,7 +56,6 @@ export function LocationCard() {
       (pos) => {
         fetchLocation(pos.coords.latitude, pos.coords.longitude, true).finally(() => {
           setLocating(false);
-          toast.success('Live location updated.');
         });
       },
       (err) => {
@@ -106,6 +112,11 @@ export function LocationCard() {
             <LocationField label="District" value={location.district} />
             <LocationField label="Village PIN Code" value={location.pincode} />
             <LocationField label="State" value={location.state} />
+            {!location.street && !location.village && !location.district && !location.state && !location.fullAddress && (
+              <div className="py-2 text-sm text-muted-foreground text-center">
+                Click "Use My Live Location" to detect your address.
+              </div>
+            )}
           </div>
         )}
 
