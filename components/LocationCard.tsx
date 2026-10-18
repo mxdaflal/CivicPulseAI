@@ -28,16 +28,21 @@ export function LocationCard() {
   const [locating, setLocating] = useState(false);
   const [isLive, setIsLive] = useState(false);
 
-  const fetchLocation = async (lat: number, lon: number, live: boolean) => {
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+
+  const fetchLocation = async (lat: number, lon: number, live: boolean, accuracyMeters?: number) => {
+    setAccuracy(accuracyMeters ?? null);
     try {
       const data = await reverseGeocode(lat, lon);
       setLocation(data);
       setIsLive(live);
       const hasAddress = data.street || data.village || data.district || data.state || data.fullAddress;
-      if (hasAddress) {
-        toast.success('Live location updated with address details.');
-      } else {
-        toast.success('Location updated, but no address details found for this area.');
+      if (!hasAddress) {
+        toast.info('Location updated, but no address details found for this area.');
+      } else if (accuracyMeters && accuracyMeters > 5000) {
+        toast.info('This location is approximate (based on your network). Accuracy: about ' + Math.round(accuracyMeters / 1000) + ' km.');
+      } else if (accuracyMeters && accuracyMeters > 1000) {
+        toast.info('Location accuracy: about ' + Math.round(accuracyMeters / 1000) + ' km.');
       }
     } catch (err) {
       setLocation((prev) => ({ ...prev, lat, lon }));
@@ -54,7 +59,7 @@ export function LocationCard() {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        fetchLocation(pos.coords.latitude, pos.coords.longitude, true).finally(() => {
+        fetchLocation(pos.coords.latitude, pos.coords.longitude, true, pos.coords.accuracy).finally(() => {
           setLocating(false);
         });
       },
@@ -94,6 +99,9 @@ export function LocationCard() {
           <span className={`text-sm font-semibold ${isLive ? 'text-green-600' : 'text-muted-foreground'}`}>
             {isLive ? 'Live Location' : 'Default Location'}
           </span>
+          {accuracy && (
+            <span className="text-xs text-muted-foreground">(±{accuracy >= 1000 ? Math.round(accuracy / 1000) + ' km' : Math.round(accuracy) + ' m'})</span>
+          )}
           <span className="text-xs text-muted-foreground ml-auto font-mono">
             {location.lat.toFixed(5)}, {location.lon.toFixed(5)}
           </span>

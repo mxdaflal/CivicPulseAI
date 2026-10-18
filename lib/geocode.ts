@@ -11,16 +11,29 @@ export type AddressParts = {
   lon: number;
 };
 
+type AdminEntry = { name?: string; adminLevel?: number; description?: string };
+
+function fromAdministrative(admin: AdminEntry[] | undefined, levels: number[]): string {
+  if (!Array.isArray(admin)) return '';
+  for (const level of levels) {
+    const match = admin.find((e) => e?.adminLevel === level && e.name);
+    if (match?.name) return match.name;
+  }
+  return '';
+}
+
 async function reverseGeocodePrimary(lat: number, lon: number): Promise<AddressParts> {
   const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Primary geocoding failed (${res.status})`);
   const data = await res.json();
 
-  const street = data.streetName || data.locality || data.principalLocality || '';
+  const admin: AdminEntry[] | undefined = data.localityInfo?.administrative;
+  // India admin levels: 4 = state, 5 = district, 6/7 = sub-district/taluk
+  const state = fromAdministrative(admin, [4]) || data.principalSubdivision || '';
+  const district = fromAdministrative(admin, [5]) || fromAdministrative(admin, [6]) || '';
   const village = data.city || data.locality || data.principalLocality || data.subLocality || '';
-  const district = data.principalSubdivision || data.localityInfo?.administrative?.[0]?.name || '';
-  const state = data.principalSubdivision || '';
+  const street = data.streetName || '';
   const country = data.countryName || '';
   const pincode = data.postcode || '';
 
@@ -54,7 +67,7 @@ async function reverseGeocodeFallback(lat: number, lon: number): Promise<Address
 
   const street = a.road || a.pedestrian || a.footway || a.cycleway || a.path || '';
   const village = a.village || a.hamlet || a.suburb || a.neighbourhood || a.town || a.city_district || a.quarter || '';
-  const district = a.state_district || a.county || a.district || a.city || '';
+  const district = a.state_district || a.county || a.district || '';
   const state = a.state || a.province || '';
   const country = a.country || '';
   const pincode = a.postcode || '';
