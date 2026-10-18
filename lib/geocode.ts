@@ -22,17 +22,73 @@ function fromAdministrative(admin: AdminEntry[] | undefined, levels: number[]): 
   return '';
 }
 
+function pick(...values: (string | undefined)[]): string {
+  for (const v of values) {
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return '';
+}
+
+interface NominatimResponse {
+  address?: Record<string, string | undefined>;
+  display_name?: string;
+  error?: string;
+}
+
+// Primary: server-side proxy to Nominatim via the geocode edge function.
+// Returns accurate village/hamlet names for rural India.
 async function reverseGeocodePrimary(lat: number, lon: number): Promise<AddressParts> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const url = `${supabaseUrl}/functions/v1/geocode?lat=${lat}&lon=${lon}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${supabaseAnonKey}`,
+      apikey: supabaseAnonKey,
+    },
+  });
+
+  if (!res.ok) throw new Error(`Geocoding service failed (${res.status})`);
+  const data: NominatimResponse = await res.json();
+  if (data.error) throw new Error(data.error);
+
+  const a = data.address || {};
+
+  const street = pick(a.road, a.pedestrian, a.footway, a.residential, a.neighbourhood);
+  const village = pick(a.village, a.hamlet, a.town, a.locality, a.suburb, a.city_district, a.quarter, a.city);
+  const district = pick(a.state_district, a.district, a.county);
+  const state = pick(a.state, a.province);
+  const country = pick(a.country);
+  const pincode = pick(a.postcode);
+
+  const fullAddress = [street, village, district, state, country].filter(Boolean).join(', ');
+
+  return {
+    streetNumber: a.house_number || '',
+    street,
+    village,
+    district,
+    pincode,
+    state,
+    country,
+    fullAddress: fullAddress || data.display_name || '',
+    lat,
+    lon,
+  };
+}
+
+// Fallback: direct BigDataCloud lookup.
+async function reverseGeocodeFallback(lat: number, lon: number): Promise<AddressParts> {
   const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Primary geocoding failed (${res.status})`);
+  if (!res.ok) throw new Error(`Fallback geocoding failed (${res.status})`);
   const data = await res.json();
 
   const admin: AdminEntry[] | undefined = data.localityInfo?.administrative;
   // India admin levels: 4 = state, 5 = district, 6/7 = sub-district/taluk
   const state = fromAdministrative(admin, [4]) || data.principalSubdivision || '';
   const district = fromAdministrative(admin, [5]) || fromAdministrative(admin, [6]) || '';
-  const village = data.city || data.locality || data.principalLocality || data.subLocality || '';
+  const village = data.locality || data.principalLocality || data.subLocality || '';
   const street = data.streetName || '';
   const country = data.countryName || '';
   const pincode = data.postcode || '';
@@ -48,41 +104,6 @@ async function reverseGeocodePrimary(lat: number, lon: number): Promise<AddressP
     state,
     country,
     fullAddress: fullAddress || data.locality || '',
-    lat,
-    lon,
-  };
-}
-
-async function reverseGeocodeFallback(lat: number, lon: number): Promise<AddressParts> {
-  const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
-  const res = await fetch(url, {
-    headers: {
-      'Accept-Language': 'en',
-      'Accept': 'application/json',
-    },
-  });
-  if (!res.ok) throw new Error(`Fallback geocoding failed (${res.status})`);
-  const json = await res.json();
-  const a = json.address || {};
-
-  const street = a.road || a.pedestrian || a.footway || a.cycleway || a.path || '';
-  const village = a.village || a.hamlet || a.suburb || a.neighbourhood || a.town || a.city_district || a.quarter || '';
-  const district = a.state_district || a.county || a.district || '';
-  const state = a.state || a.province || '';
-  const country = a.country || '';
-  const pincode = a.postcode || '';
-
-  const fullAddress = json.display_name || '';
-
-  return {
-    streetNumber: a.house_number || '',
-    street,
-    village,
-    district,
-    pincode,
-    state,
-    country,
-    fullAddress,
     lat,
     lon,
   };
@@ -110,8 +131,8 @@ export function formatAddress(parts: AddressParts): string {
   }
   if (parts.village) segments.push(parts.village);
   if (parts.district) segments.push(parts.district);
-  if (parts.pincode) segments.push(parts.pincode);
   if (parts.state) segments.push(parts.state);
+  if (parts.pincode) segments.push(parts.pincode);
 
   if (segments.length === 0) {
     return parts.fullAddress || `${parts.lat.toFixed(5)}, ${parts.lon.toFixed(5)}`;

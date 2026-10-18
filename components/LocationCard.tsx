@@ -118,8 +118,8 @@ export function LocationCard() {
             <LocationField label="Street / Road" value={location.street} />
             <LocationField label="Village" value={location.village} />
             <LocationField label="District" value={location.district} />
-            <LocationField label="Village PIN Code" value={location.pincode} />
             <LocationField label="State" value={location.state} />
+            <LocationField label="Village PIN Code" value={location.pincode} />
             {!location.street && !location.village && !location.district && !location.state && !location.fullAddress && (
               <div className="py-2 text-sm text-muted-foreground text-center">
                 Click "Use My Live Location" to detect your address.
