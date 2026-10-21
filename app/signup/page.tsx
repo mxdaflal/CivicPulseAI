@@ -1,26 +1,38 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { toast } from 'sonner';
-import { Loader2, UserPlus, Activity, Mail, Lock, User, ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { supabase } from '@/lib/supabase-client';
-import { useAuth } from '@/components/auth-provider';
+import { useState, useEffect } from "react";
+import { safeRedirect } from "@/lib/security";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { toast } from "sonner";
+import {
+  Loader2,
+  UserPlus,
+  Activity,
+  Mail,
+  Lock,
+  User,
+  ArrowRight,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { supabase } from "@/lib/supabase-client";
+import { useAuth } from "@/components/auth-provider";
 
 export default function SignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
-  const redirect = searchParams.get('redirect') || '/';
+  const redirect = safeRedirect(
+    searchParams.get("redirect"),
+    "/citizen/dashboard",
+  );
 
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
 
@@ -33,25 +45,30 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName || !email || !password) {
-      toast.error('Please fill in all fields.');
+      toast.error("Please fill in all fields.");
       return;
     }
-    if (password.length < 6) {
-      toast.error('Password must be at least 6 characters.');
+    if (password.length < 12) {
+      toast.error("Use a password with at least 12 characters.");
       return;
     }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { full_name: fullName } },
       });
       if (error) throw error;
-      toast.success('Account created! You are now signed in.');
-      router.push(redirect);
+      if (data.session) {
+        toast.success("Account created.");
+        router.push(redirect);
+      } else
+        toast.success(
+          "Check your email to confirm your account before signing in.",
+        );
     } catch (err: any) {
-      toast.error(err.message || 'Failed to create account.');
+      toast.error(err.message || "Failed to create account.");
     }
     setLoading(false);
   };
@@ -60,14 +77,17 @@ export default function SignupPage() {
     setOauthLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
+        provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`,
+          redirectTo: `${window.location.origin}/auth/confirm?redirect=${encodeURIComponent(redirect)}`,
         },
       });
       if (error) throw error;
     } catch (err: any) {
-      toast.error(err.message || 'Google sign-up failed. Make sure Google is enabled in your Supabase project settings.');
+      toast.error(
+        err.message ||
+          "Google sign-up failed. Make sure Google is enabled in your Supabase project settings.",
+      );
       setOauthLoading(false);
     }
   };
@@ -87,7 +107,9 @@ export default function SignupPage() {
           <Activity className="h-6 w-6" />
         </div>
         <h1 className="text-2xl font-bold text-navy">Create your account</h1>
-        <p className="mt-2 text-muted-foreground">Join CIVIC PULSE AI to report and track community issues.</p>
+        <p className="mt-2 text-muted-foreground">
+          Join CIVIC PULSE AI to report and track community issues.
+        </p>
       </div>
 
       <Card className="border-border/60">
@@ -161,13 +183,17 @@ export default function SignupPage() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 6 characters"
+                  placeholder="At least 12 characters"
                   required
                   className="pl-10"
                 />
               </div>
             </div>
-            <Button type="submit" disabled={loading || oauthLoading} className="w-full gap-2 bg-navy hover:bg-navy-light">
+            <Button
+              type="submit"
+              disabled={loading || oauthLoading}
+              className="w-full gap-2 bg-navy hover:bg-navy-light"
+            >
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -183,8 +209,11 @@ export default function SignupPage() {
           </form>
 
           <div className="mt-6 text-center text-sm text-muted-foreground">
-            Already have an account?{' '}
-            <Link href={`/login?redirect=${encodeURIComponent(redirect)}`} className="font-medium text-accent hover:underline">
+            Already have an account?{" "}
+            <Link
+              href={`/login?redirect=${encodeURIComponent(redirect)}`}
+              className="font-medium text-accent hover:underline"
+            >
               Sign in
             </Link>
           </div>

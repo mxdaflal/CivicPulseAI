@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   Activity,
   Droplets,
@@ -24,89 +24,124 @@ import {
   User,
   Shield,
   FileText,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { supabase } from '@/lib/supabase-client';
-import { CATEGORY_ICONS, CATEGORY_COLORS } from '@/lib/constants';
-import { LocationCard } from '@/components/LocationCard';
-import { useAuth } from '@/components/auth-provider';
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { supabase } from "@/lib/supabase-client";
+import { CATEGORY_ICONS, CATEGORY_COLORS } from "@/lib/constants";
+import { LocationCard } from "@/components/LocationCard";
+import { useAuth } from "@/components/auth-provider";
 
 const categoryList = [
-  { name: 'Water Supply', desc: 'Supply interruptions, contamination, low pressure' },
-  { name: 'Garbage Overflow', desc: 'Overflowing bins, uncollected waste, illegal dumping' },
-  { name: 'Damaged Road', desc: 'Potholes, cracks, subsidence, missing signage' },
-  { name: 'Drainage Problem', desc: 'Blocked drains, flooding, waterlogging' },
-  { name: 'Streetlight Failure', desc: 'Non-functional lights, flickering, damaged poles' },
-  { name: 'Public Transport', desc: 'Unreliable service, broken shelters, safety' },
+  {
+    name: "Water Supply",
+    desc: "Supply interruptions, contamination, low pressure",
+  },
+  {
+    name: "Garbage Overflow",
+    desc: "Overflowing bins, uncollected waste, illegal dumping",
+  },
+  {
+    name: "Damaged Road",
+    desc: "Potholes, cracks, subsidence, missing signage",
+  },
+  { name: "Drainage Problem", desc: "Blocked drains, flooding, waterlogging" },
+  {
+    name: "Streetlight Failure",
+    desc: "Non-functional lights, flickering, damaged poles",
+  },
+  {
+    name: "Public Transport",
+    desc: "Unreliable service, broken shelters, safety",
+  },
 ];
 
 const lifecycleSteps = [
-  { icon: Eye, title: 'Observe', desc: 'Citizens report problems via text, photo, or location.' },
-  { icon: ShieldCheck, title: 'Verify', desc: 'AI classifies reports and flags potential duplicates for review.' },
-  { icon: Brain, title: 'Predict', desc: 'The system identifies patterns and emerging risk hotspots.' },
-  { icon: Zap, title: 'Prioritise', desc: 'Explainable priority scores rank incidents by urgency and impact.' },
-  { icon: CheckCircle2, title: 'Resolve & Learn', desc: 'Staff resolve with evidence. The system learns from outcomes.' },
+  {
+    icon: Eye,
+    title: "Observe",
+    desc: "Citizens report problems via text, photo, or location.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Verify",
+    desc: "AI classifies reports and flags potential duplicates for review.",
+  },
+  {
+    icon: Brain,
+    title: "Predict",
+    desc: "Review verified historical trends when sufficient data exists.",
+  },
+  {
+    icon: Zap,
+    title: "Prioritise",
+    desc: "Explainable priority scores rank incidents by urgency and impact.",
+  },
+  {
+    icon: CheckCircle2,
+    title: "Resolve & Learn",
+    desc: "Authorised staff record outcomes and retain an audit trail.",
+  },
 ];
 
 const features = [
   {
     icon: Brain,
-    title: 'AI-Powered Classification',
-    desc: 'Every report is automatically categorised and analysed for duplicates using keyword matching and similarity scoring.',
+    title: "Analysis with Human Oversight",
+    desc: "Every report is automatically categorised and analysed for duplicates using keyword matching and similarity scoring.",
   },
   {
     icon: TrendingUp,
-    title: 'Explainable Priority Scoring',
-    desc: 'A transparent formula (Urgency 40%, Impact 30%, Recurrence 20%, Vulnerability 10%) ensures fair, auditable prioritisation.',
+    title: "Explainable Priority Scoring",
+    desc: "A transparent formula (Urgency 40%, Impact 30%, Recurrence 20%, Vulnerability 10%) ensures fair, auditable prioritisation.",
   },
   {
     icon: MapPin,
-    title: 'Location Intelligence',
-    desc: 'Reports are geocoded and mapped. Hotspots and recurrence patterns surface emerging community risks.',
+    title: "Location Intelligence",
+    desc: "Reports are geocoded and mapped. Hotspots and recurrence patterns surface emerging community risks.",
   },
   {
     icon: ShieldCheck,
-    title: 'Human-Verified Resolution',
-    desc: 'AI recommends, humans decide. Every status change is audit-logged with actor, action, and timestamp.',
+    title: "Human-Verified Resolution",
+    desc: "AI recommends, humans decide. Every status change is audit-logged with actor, action, and timestamp.",
   },
   {
     icon: Users,
-    title: 'Citizen Transparency',
-    desc: 'Track any report by ID. See real status updates, timelines, and resolution evidence — not black-box promises.',
+    title: "Citizen Transparency",
+    desc: "Track any report by ID. See real status updates, timelines, and resolution evidence — not black-box promises.",
   },
   {
     icon: Globe,
-    title: 'Privacy-First Design',
-    desc: 'Personal data stays separate from public incident summaries. No precise locations or evidence exposed by default.',
+    title: "Privacy-First Design",
+    desc: "Personal data stays separate from public incident summaries. No precise locations or evidence exposed by default.",
   },
 ];
 
 export default function HomePage() {
   const { user, profile, loading: authLoading } = useAuth();
-  const [stats, setStats] = useState({ reports: 0, verified: 0, inProgress: 0, resolved: 0 });
+  const [stats, setStats] = useState({
+    reports: 0,
+    verified: 0,
+    inProgress: 0,
+    resolved: 0,
+  });
+  const [statsError, setStatsError] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        // Single query to get all incident counts at once
-        const { count: reportCount } = await supabase.from('reports').select('id', { count: 'exact', head: true });
-        const { data: incidents } = await supabase.from('incidents').select('status').eq('status', 'resolved');
-        const resolvedCount = incidents?.length || 0;
-        const { data: activeIncidents } = await supabase.from('incidents').select('status').in('status', ['verified', 'open', 'assigned', 'in_progress']);
-
-        const verified = activeIncidents?.filter(i => i.status === 'verified' || i.status === 'open').length || 0;
-        const inProgress = activeIncidents?.filter(i => i.status === 'assigned' || i.status === 'in_progress').length || 0;
-
-        setStats({
-          reports: reportCount || 0,
-          verified,
-          inProgress,
-          resolved: resolvedCount,
-        });
+        const { data, error } = await supabase.rpc("civic_public_stats");
+        if (error) throw error;
+        setStats(data);
       } catch {
-        // Use defaults
+        setStatsError(true);
       }
       setLoading(false);
     })();
@@ -116,10 +151,14 @@ export default function HomePage() {
     <div className="flex flex-col">
       {/* Hero Section */}
       <section className="relative overflow-hidden hero-gradient text-white">
-        <div className="absolute inset-0 bg-grid-pattern opacity-10" style={{
-          backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)',
-          backgroundSize: '40px 40px',
-        }} />
+        <div
+          className="absolute inset-0 bg-grid-pattern opacity-10"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
+            backgroundSize: "40px 40px",
+          }}
+        />
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="animate-fade-in">
@@ -131,13 +170,16 @@ export default function HomePage() {
                 Intelligent Early-Warning Network
               </div>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1]">
-                Transform community observations into{' '}
-                <span className="text-teal-400">actionable civic intelligence</span>
+                Transform community observations into{" "}
+                <span className="text-teal-400">
+                  actionable civic intelligence
+                </span>
               </h1>
               <p className="mt-6 text-lg text-slate-200 leading-relaxed max-w-xl">
-                CIVIC PULSE AI turns scattered citizen reports of water failures, overflowing waste,
-                damaged roads and other public-service issues into verified, prioritised, and
-                trackable resolutions — before minor disruptions become major crises.
+                CIVIC PULSE AI turns scattered citizen reports of water
+                failures, overflowing waste, damaged roads and other
+                public-service issues into verified, prioritised, and trackable
+                resolutions — before minor disruptions become major crises.
               </p>
 
               {/* Dual Login Buttons — hidden when already logged in */}
@@ -150,8 +192,12 @@ export default function HomePage() {
                           <User className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                          <div className="font-bold text-white text-lg">Citizen Login</div>
-                          <div className="text-xs text-blue-100">Report & track issues</div>
+                          <div className="font-bold text-white text-lg">
+                            Citizen Login
+                          </div>
+                          <div className="text-xs text-blue-100">
+                            Report & track issues
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -163,8 +209,12 @@ export default function HomePage() {
                           <Shield className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                          <div className="font-bold text-white text-lg">Staff Login</div>
-                          <div className="text-xs text-red-100">Manage & resolve</div>
+                          <div className="font-bold text-white text-lg">
+                            Staff Login
+                          </div>
+                          <div className="text-xs text-red-100">
+                            Manage & resolve
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -175,21 +225,34 @@ export default function HomePage() {
               {/* When logged in, show portal links */}
               {!authLoading && user && (
                 <div className="mt-8 flex flex-wrap gap-4 max-w-lg">
-                  {profile && ['verifier', 'operator', 'manager', 'admin', 'staff'].includes(profile.role) ? (
+                  {profile &&
+                  ["verifier", "operator", "manager", "admin"].includes(
+                    profile.role,
+                  ) ? (
                     <Link href="/staff/dashboard">
-                      <Button size="lg" className="bg-red-600 hover:bg-red-700 gap-2">
+                      <Button
+                        size="lg"
+                        className="bg-red-600 hover:bg-red-700 gap-2"
+                      >
                         <Shield className="h-4 w-4" /> Go to Staff Dashboard
                       </Button>
                     </Link>
                   ) : (
                     <Link href="/citizen/dashboard">
-                      <Button size="lg" className="bg-blue-600 hover:bg-blue-700 gap-2">
+                      <Button
+                        size="lg"
+                        className="bg-blue-600 hover:bg-blue-700 gap-2"
+                      >
                         <User className="h-4 w-4" /> Go to My Dashboard
                       </Button>
                     </Link>
                   )}
                   <Link href="/report">
-                    <Button size="lg" variant="outline" className="bg-white/10 text-white border-white/20 hover:bg-white/20 gap-2">
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="bg-white/10 text-white border-white/20 hover:bg-white/20 gap-2"
+                    >
                       <FileText className="h-4 w-4" /> File a Report
                     </Button>
                   </Link>
@@ -235,25 +298,27 @@ export default function HomePage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="rounded-xl bg-white/5 p-4 border border-white/10">
                     <div className="text-3xl font-bold text-white">
-                      {loading ? '—' : stats.reports}
+                      {loading || statsError ? "—" : stats.reports}
                     </div>
                     <div className="text-sm text-slate-300 mt-1">Reports</div>
                   </div>
                   <div className="rounded-xl bg-white/5 p-4 border border-white/10">
                     <div className="text-3xl font-bold text-cyan-400">
-                      {loading ? '—' : stats.verified}
+                      {loading || statsError ? "—" : stats.verified}
                     </div>
                     <div className="text-sm text-slate-300 mt-1">Verified</div>
                   </div>
                   <div className="rounded-xl bg-white/5 p-4 border border-white/10">
                     <div className="text-3xl font-bold text-amber-400">
-                      {loading ? '—' : stats.inProgress}
+                      {loading || statsError ? "—" : stats.inProgress}
                     </div>
-                    <div className="text-sm text-slate-300 mt-1">In Process</div>
+                    <div className="text-sm text-slate-300 mt-1">
+                      In Process
+                    </div>
                   </div>
                   <div className="rounded-xl bg-white/5 p-4 border border-white/10">
                     <div className="text-3xl font-bold text-teal-400">
-                      {loading ? '—' : stats.resolved}
+                      {loading || statsError ? "—" : stats.resolved}
                     </div>
                     <div className="text-sm text-slate-300 mt-1">Resolved</div>
                   </div>
@@ -268,17 +333,25 @@ export default function HomePage() {
       <section className="py-20 bg-background">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-3xl font-bold text-navy tracking-tight">What you can report</h2>
+            <h2 className="text-3xl font-bold text-navy tracking-tight">
+              What you can report
+            </h2>
             <p className="mt-3 text-muted-foreground text-lg">
-              Six categories covering the most common everyday public-service failures.
+              Six categories covering the most common everyday public-service
+              failures.
             </p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {categoryList.map((cat) => {
-              const Icon = CATEGORY_ICONS[cat.name.replace(/\s/g, '')] || CATEGORY_ICONS['AlertCircle'];
+              const Icon =
+                CATEGORY_ICONS[cat.name.replace(/\s/g, "")] ||
+                CATEGORY_ICONS["AlertCircle"];
               const color = CATEGORY_COLORS[cat.name];
               return (
-                <Card key={cat.name} className="card-hover border-border/60 overflow-hidden">
+                <Card
+                  key={cat.name}
+                  className="card-hover border-border/60 overflow-hidden"
+                >
                   <CardHeader>
                     <div
                       className="flex h-12 w-12 items-center justify-center rounded-xl mb-2"
@@ -286,7 +359,9 @@ export default function HomePage() {
                     >
                       <Icon className="h-6 w-6" style={{ color }} />
                     </div>
-                    <CardTitle className="text-lg text-navy">{cat.name}</CardTitle>
+                    <CardTitle className="text-lg text-navy">
+                      {cat.name}
+                    </CardTitle>
                     <CardDescription>{cat.desc}</CardDescription>
                   </CardHeader>
                 </Card>
@@ -300,9 +375,12 @@ export default function HomePage() {
       <section className="py-20 bg-secondary/50">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-3xl font-bold text-navy tracking-tight">How it works</h2>
+            <h2 className="text-3xl font-bold text-navy tracking-tight">
+              How it works
+            </h2>
             <p className="mt-3 text-muted-foreground text-lg">
-              Every report moves through a five-stage lifecycle — from observation to resolution.
+              Every report moves through a five-stage lifecycle — from
+              observation to resolution.
             </p>
           </div>
           <div className="grid md:grid-cols-5 gap-4">
@@ -313,9 +391,13 @@ export default function HomePage() {
                     <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-navy text-white mb-4">
                       <step.icon className="h-7 w-7" />
                     </div>
-                    <div className="text-xs font-semibold text-accent mb-1">STEP {i + 1}</div>
+                    <div className="text-xs font-semibold text-accent mb-1">
+                      STEP {i + 1}
+                    </div>
                     <h3 className="font-semibold text-navy">{step.title}</h3>
-                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{step.desc}</p>
+                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                      {step.desc}
+                    </p>
                   </CardContent>
                 </Card>
                 {i < lifecycleSteps.length - 1 && (
@@ -329,13 +411,57 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="py-12 border-y bg-secondary/40">
+        <div className="max-w-7xl mx-auto px-4">
+          <p className="text-teal text-sm font-semibold uppercase tracking-widest">
+            SEVA First innovation prototype
+          </p>
+          <h2 className="text-2xl font-bold mt-3">
+            A credible pilot starts with honest boundaries
+          </h2>
+          <div className="grid md:grid-cols-3 gap-6 mt-6">
+            <div>
+              <h3 className="font-semibold">Core workflow</h3>
+              <p className="text-sm text-muted-foreground mt-2">
+                Private reporting, human verification, authorised incident
+                updates and citizen tracking backed by the configured database.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold">Prototype intelligence</h3>
+              <p className="text-sm text-muted-foreground mt-2">
+                Explainable rule-based analysis works without an AI provider.
+                Model-assisted suggestions require the configured edge function.
+                No calibrated accuracy is claimed.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-semibold">Future pilot</h3>
+              <p className="text-sm text-muted-foreground mt-2">
+                Ward or village-cluster trials require consent, trained
+                reviewers and agreed response responsibilities. No government
+                partnership or municipal integration is claimed.
+              </p>
+            </div>
+          </div>
+          {statsError && (
+            <p className="text-sm mt-5" role="status">
+              Live statistics are temporarily unavailable. No sample figures are
+              shown.
+            </p>
+          )}
+        </div>
+      </section>
       {/* Features Section */}
       <section className="py-20 bg-background">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-3xl font-bold text-navy tracking-tight">Built for real civic impact</h2>
+            <h2 className="text-3xl font-bold text-navy tracking-tight">
+              Built for real civic impact
+            </h2>
             <p className="mt-3 text-muted-foreground text-lg">
-              Not just a complaint box. A complete intelligence platform connecting citizens and service providers.
+              Not just a complaint box. A civic innovation prototype for a
+              carefully scoped community pilot.
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -345,8 +471,12 @@ export default function HomePage() {
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 mb-4">
                     <feature.icon className="h-5 w-5 text-accent" />
                   </div>
-                  <h3 className="font-semibold text-navy text-lg">{feature.title}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{feature.desc}</p>
+                  <h3 className="font-semibold text-navy text-lg">
+                    {feature.title}
+                  </h3>
+                  <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                    {feature.desc}
+                  </p>
                 </CardContent>
               </Card>
             ))}
@@ -357,21 +487,33 @@ export default function HomePage() {
       {/* CTA Section */}
       <section className="py-20 bg-navy text-white">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl font-bold tracking-tight">Ready to improve your community?</h2>
+          <h2 className="text-3xl font-bold tracking-tight">
+            Ready to improve your community?
+          </h2>
           <p className="mt-4 text-slate-300 text-lg max-w-xl mx-auto">
-            Report a problem in minutes. Track it to resolution. Help your city respond faster and smarter.
+            Report a problem in minutes. Track it to resolution. Help your city
+            respond faster and smarter.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
             {!authLoading && user ? (
-              profile && ['verifier', 'operator', 'manager', 'admin', 'staff'].includes(profile.role) ? (
+              profile &&
+              ["verifier", "operator", "manager", "admin"].includes(
+                profile.role,
+              ) ? (
                 <Link href="/staff/dashboard">
-                  <Button size="lg" className="bg-red-600 hover:bg-red-700 gap-2">
+                  <Button
+                    size="lg"
+                    className="bg-red-600 hover:bg-red-700 gap-2"
+                  >
                     <Shield className="h-4 w-4" /> Staff Dashboard
                   </Button>
                 </Link>
               ) : (
                 <Link href="/citizen/dashboard">
-                  <Button size="lg" className="bg-blue-600 hover:bg-blue-700 gap-2">
+                  <Button
+                    size="lg"
+                    className="bg-blue-600 hover:bg-blue-700 gap-2"
+                  >
                     <User className="h-4 w-4" /> My Dashboard
                   </Button>
                 </Link>
@@ -379,13 +521,19 @@ export default function HomePage() {
             ) : (
               <>
                 <Link href="/citizen/login">
-                  <Button size="lg" className="bg-blue-600 hover:bg-blue-700 gap-2">
+                  <Button
+                    size="lg"
+                    className="bg-blue-600 hover:bg-blue-700 gap-2"
+                  >
                     <User className="h-4 w-4" />
                     Citizen Portal
                   </Button>
                 </Link>
                 <Link href="/staff/login">
-                  <Button size="lg" className="bg-red-600 hover:bg-red-700 gap-2">
+                  <Button
+                    size="lg"
+                    className="bg-red-600 hover:bg-red-700 gap-2"
+                  >
                     <Shield className="h-4 w-4" />
                     Staff Portal
                   </Button>
@@ -410,31 +558,78 @@ export default function HomePage() {
                 </span>
               </div>
               <p className="text-sm text-slate-400 leading-relaxed">
-                An intelligent early-warning and resolution network for everyday public-service failures.
+                An intelligent early-warning and resolution network for everyday
+                public-service failures.
               </p>
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-white mb-3">Platform</h4>
+              <h4 className="text-sm font-semibold text-white mb-3">
+                Platform
+              </h4>
               <ul className="space-y-2 text-sm">
-                <li><Link href="/citizen/login" className="hover:text-accent transition-colors">Citizen Portal</Link></li>
-                <li><Link href="/staff/login" className="hover:text-accent transition-colors">Staff Portal</Link></li>
-                <li><Link href="/report" className="hover:text-accent transition-colors">Quick Report</Link></li>
-                <li><Link href="/track" className="hover:text-accent transition-colors">Track a Report</Link></li>
-                <li><Link href="/analytics" className="hover:text-accent transition-colors">Civic Analytics</Link></li>
+                <li>
+                  <Link
+                    href="/citizen/login"
+                    className="hover:text-accent transition-colors"
+                  >
+                    Citizen Portal
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/staff/login"
+                    className="hover:text-accent transition-colors"
+                  >
+                    Staff Portal
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/report"
+                    className="hover:text-accent transition-colors"
+                  >
+                    Quick Report
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/track"
+                    className="hover:text-accent transition-colors"
+                  >
+                    Track a Report
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/analytics"
+                    className="hover:text-accent transition-colors"
+                  >
+                    Civic Analytics
+                  </Link>
+                </li>
               </ul>
             </div>
             <div>
               <h4 className="text-sm font-semibold text-white mb-3">About</h4>
               <ul className="space-y-2 text-sm text-slate-400">
-                <li className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Privacy-First Design</li>
-                <li className="flex items-center gap-2"><Brain className="h-4 w-4" /> AI-Assisted Workflow</li>
-                <li className="flex items-center gap-2"><Clock className="h-4 w-4" /> Real-Time Tracking</li>
-                <li className="flex items-center gap-2"><Users className="h-4 w-4" /> Community-Driven</li>
+                <li className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4" /> Privacy-First Design
+                </li>
+                <li className="flex items-center gap-2">
+                  <Brain className="h-4 w-4" /> AI-Assisted Workflow
+                </li>
+                <li className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" /> Real-Time Tracking
+                </li>
+                <li className="flex items-center gap-2">
+                  <Users className="h-4 w-4" /> Community-Driven
+                </li>
               </ul>
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-white/10 text-center text-sm text-slate-400">
-            CIVIC PULSE AI — Transforming community observations into civic intelligence.
+            CIVIC PULSE AI — Transforming community observations into civic
+            intelligence.
           </div>
         </div>
       </footer>

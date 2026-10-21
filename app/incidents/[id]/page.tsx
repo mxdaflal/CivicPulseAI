@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { toast } from 'sonner';
+import { useState, useEffect, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   Loader2,
   ArrowLeft,
@@ -17,28 +17,37 @@ import {
   AlertCircle,
   User,
   Building2,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { supabase, Incident, IncidentEvent, Report, Department, AIAnalysis } from '@/lib/supabase-client';
-import { useAuth } from '@/components/auth-provider';
+} from "@/components/ui/select";
+import {
+  supabase,
+  Incident,
+  IncidentEvent,
+  Report,
+  Department,
+  AIAnalysis,
+} from "@/lib/supabase-client";
+import { PrivateEvidence } from "@/components/private-evidence";
+import { useLiveRefresh } from "@/hooks/use-live-refresh";
+import { useAuth } from "@/components/auth-provider";
 import {
   STATUS_CONFIG,
   PRIORITY_CONFIG,
   CATEGORY_ICONS,
   CATEGORY_COLORS,
   STATUS_TRANSITIONS,
-} from '@/lib/constants';
+} from "@/lib/constants";
 
 export default function IncidentDetailPage() {
   const params = useParams<{ id: string }>();
@@ -46,21 +55,27 @@ export default function IncidentDetailPage() {
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
 
+  const [overridePriority, setOverridePriority] = useState(50),
+    [overrideReason, setOverrideReason] = useState("");
+  const [evidence, setEvidence] = useState<
+    { id: string; file_url: string; description: string }[]
+  >([]);
+  const [evidenceBusy, setEvidenceBusy] = useState(false);
   const [incident, setIncident] = useState<Incident | null>(null);
   const [events, setEvents] = useState<IncidentEvent[]>([]);
   const [linkedReports, setLinkedReports] = useState<Report[]>([]);
   const [aiAnalyses, setAiAnalyses] = useState<AIAnalysis[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newStatus, setNewStatus] = useState<string>('');
-  const [notes, setNotes] = useState('');
-  const [assignDept, setAssignDept] = useState<string>('');
+  const [newStatus, setNewStatus] = useState<string>("");
+  const [notes, setNotes] = useState("");
+  const [assignDept, setAssignDept] = useState<string>("");
 
-  const isStaff = profile && profile.role !== 'citizen';
+  const isStaff = profile && profile.role !== "citizen";
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push('/login?redirect=/dashboard');
+      router.push("/login?redirect=/dashboard");
     }
   }, [authLoading, user, router]);
 
@@ -69,23 +84,36 @@ export default function IncidentDetailPage() {
     setLoading(true);
     try {
       const { data: incData, error: incError } = await supabase
-        .from('incidents')
-        .select('*')
-        .eq('id', id)
+        .from("incidents")
+        .select("*")
+        .eq("id", id)
         .maybeSingle();
 
       if (incError) throw incError;
       if (!incData) {
-        toast.error('Incident not found.');
-        router.push('/dashboard');
+        toast.error("Incident not found.");
+        router.push("/dashboard");
         return;
       }
       setIncident(incData as Incident);
+      const evidenceResult = await supabase
+        .from("evidence")
+        .select("id,file_url,description")
+        .eq("incident_id", id);
+      if (evidenceResult.error) throw evidenceResult.error;
+      setEvidence(evidenceResult.data ?? []);
 
       const [eventsRes, linksRes, deptsRes] = await Promise.all([
-        supabase.from('incident_events').select('*').eq('incident_id', id).order('created_at', { ascending: true }),
-        supabase.from('report_incident_links').select('report_id').eq('incident_id', id),
-        supabase.from('departments').select('*'),
+        supabase
+          .from("incident_events")
+          .select("*")
+          .eq("incident_id", id)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("report_incident_links")
+          .select("report_id")
+          .eq("incident_id", id),
+        supabase.from("departments").select("*"),
       ]);
 
       setEvents((eventsRes.data as IncidentEvent[]) || []);
@@ -94,27 +122,32 @@ export default function IncidentDetailPage() {
       const linkIds = (linksRes.data || []).map((l: any) => l.report_id);
       if (linkIds.length > 0) {
         const { data: reportsData } = await supabase
-          .from('reports')
-          .select('*')
-          .in('id', linkIds);
+          .from("reports")
+          .select("*")
+          .in("id", linkIds);
         setLinkedReports((reportsData as Report[]) || []);
 
         const { data: analysesData } = await supabase
-          .from('ai_analyses')
-          .select('*')
-          .in('report_id', linkIds)
-          .order('created_at', { ascending: false });
+          .from("ai_analyses")
+          .select("*")
+          .in("report_id", linkIds)
+          .order("created_at", { ascending: false });
         setAiAnalyses((analysesData as AIAnalysis[]) || []);
       }
     } catch {
-      toast.error('Failed to load incident.');
+      toast.error("Failed to load incident.");
     }
     setLoading(false);
   }, [id, router]);
 
   useEffect(() => {
-    if (user && isStaff) fetchData();
+    const timer = setTimeout(() => {
+      if (isStaff) void fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [user, isStaff, fetchData]);
+
+  useLiveRefresh(["incidents", "reports"], fetchData, !!isStaff);
 
   const handleStatusChange = async () => {
     if (!incident || !newStatus || !user) return;
@@ -126,37 +159,18 @@ export default function IncidentDetailPage() {
     }
 
     try {
-      const updateData: any = {
-        status: newStatus,
-        updated_at: new Date().toISOString(),
-      };
-      if (newStatus === 'resolved') {
-        updateData.resolved_at = new Date().toISOString();
-      }
-
-      const { error: updateError } = await supabase
-        .from('incidents')
-        .update(updateData)
-        .eq('id', incident.id);
-
+      const { error: updateError } = await supabase.rpc(
+        "update_civic_incident",
+        { target: incident.id, next_status: newStatus, note: notes },
+      );
       if (updateError) throw updateError;
 
-      await supabase.from('incident_events').insert({
-        incident_id: incident.id,
-        actor_id: user.id,
-        actor_name: profile?.full_name || 'Staff',
-        action: 'status_changed',
-        old_status: incident.status,
-        new_status: newStatus,
-        notes: notes || undefined,
-      });
-
       toast.success(`Status changed to ${newStatus}.`);
-      setNewStatus('');
-      setNotes('');
+      setNewStatus("");
+      setNotes("");
       fetchData();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to update status.');
+      toast.error(err.message || "Failed to update status.");
     }
   };
 
@@ -165,31 +179,19 @@ export default function IncidentDetailPage() {
 
     try {
       const dept = departments.find((d) => d.id === assignDept);
-      const { error } = await supabase
-        .from('incidents')
-        .update({
-          assigned_department_id: assignDept,
-          status: incident.status === 'verified' ? 'assigned' : incident.status,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', incident.id);
-
+      const { error } = await supabase.rpc("update_civic_incident", {
+        target: incident.id,
+        department: assignDept,
+        next_status: incident.status === "verified" ? "assigned" : null,
+        note: notes || "Department assigned",
+      });
       if (error) throw error;
 
-      await supabase.from('incident_events').insert({
-        incident_id: incident.id,
-        actor_id: user.id,
-        actor_name: profile?.full_name || 'Staff',
-        action: 'department_assigned',
-        new_status: incident.status === 'verified' ? 'assigned' : incident.status,
-        notes: `Assigned to ${dept?.name || 'department'}`,
-      });
-
       toast.success(`Assigned to ${dept?.name}.`);
-      setAssignDept('');
+      setAssignDept("");
       fetchData();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to assign department.');
+      toast.error(err.message || "Failed to assign department.");
     }
   };
 
@@ -211,14 +213,15 @@ export default function IncidentDetailPage() {
 
   const statusConfig = STATUS_CONFIG[incident.status];
   const priorityConfig = PRIORITY_CONFIG[incident.priority_label];
-  const CatIcon = CATEGORY_ICONS[incident.category_name.replace(/\s/g, '')] || AlertCircle;
-  const categoryColor = CATEGORY_COLORS[incident.category_name] || '#3b82f6';
+  const CatIcon =
+    CATEGORY_ICONS[incident.category_name.replace(/\s/g, "")] || AlertCircle;
+  const categoryColor = CATEGORY_COLORS[incident.category_name] || "#3b82f6";
   const allowedTransitions = STATUS_TRANSITIONS[incident.status] || [];
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <button
-        onClick={() => router.push('/dashboard')}
+        onClick={() => router.push("/dashboard")}
         className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -228,15 +231,26 @@ export default function IncidentDetailPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
         <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl shrink-0" style={{ backgroundColor: `${categoryColor}15` }}>
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-xl shrink-0"
+            style={{ backgroundColor: `${categoryColor}15` }}
+          >
             <CatIcon className="h-6 w-6" style={{ color: categoryColor }} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-navy tracking-tight">{incident.title}</h1>
+            <h1 className="text-2xl font-bold text-navy tracking-tight">
+              {incident.title}
+            </h1>
             <div className="flex items-center gap-3 mt-1.5 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1"><Tag className="h-3.5 w-3.5" />{incident.category_name}</span>
+              <span className="flex items-center gap-1">
+                <Tag className="h-3.5 w-3.5" />
+                {incident.category_name}
+              </span>
               {incident.location_text && (
-                <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{incident.location_text}</span>
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {incident.location_text}
+                </span>
               )}
               <span>{new Date(incident.created_at).toLocaleDateString()}</span>
             </div>
@@ -246,7 +260,10 @@ export default function IncidentDetailPage() {
           {statusConfig && (
             <span
               className="rounded-full px-3 py-1 text-sm font-semibold"
-              style={{ color: statusConfig.color, backgroundColor: statusConfig.bg }}
+              style={{
+                color: statusConfig.color,
+                backgroundColor: statusConfig.bg,
+              }}
             >
               {statusConfig.label}
             </span>
@@ -254,7 +271,10 @@ export default function IncidentDetailPage() {
           {priorityConfig && (
             <span
               className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
-              style={{ color: priorityConfig.color, backgroundColor: priorityConfig.bg }}
+              style={{
+                color: priorityConfig.color,
+                backgroundColor: priorityConfig.bg,
+              }}
             >
               {priorityConfig.label} priority
             </span>
@@ -269,10 +289,14 @@ export default function IncidentDetailPage() {
           {incident.description && (
             <Card className="border-border/60">
               <CardHeader>
-                <CardTitle className="text-base text-navy">Description</CardTitle>
+                <CardTitle className="text-base text-navy">
+                  Description
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-foreground leading-relaxed">{incident.description}</p>
+                <p className="text-sm text-foreground leading-relaxed">
+                  {incident.description}
+                </p>
               </CardContent>
             </Card>
           )}
@@ -287,24 +311,40 @@ export default function IncidentDetailPage() {
             </CardHeader>
             <CardContent>
               {linkedReports.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No linked reports.</p>
+                <p className="text-sm text-muted-foreground">
+                  No linked reports.
+                </p>
               ) : (
                 <div className="space-y-3">
                   {linkedReports.map((report) => (
-                    <div key={report.id} className="rounded-lg border border-border p-3">
+                    <div
+                      key={report.id}
+                      className="rounded-lg border border-border p-3"
+                    >
                       <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="font-medium text-navy text-sm">{report.title}</span>
-                        <span className="text-xs font-mono text-muted-foreground">{report.tracking_id}</span>
+                        <span className="font-medium text-navy text-sm">
+                          {report.title}
+                        </span>
+                        <span className="text-xs font-mono text-muted-foreground">
+                          {report.tracking_id}
+                        </span>
                       </div>
-                      <p className="text-sm text-muted-foreground line-clamp-2">{report.description}</p>
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {report.description}
+                      </p>
                       <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                         <span>{report.category_name}</span>
                         <span>·</span>
-                        <span>{new Date(report.created_at).toLocaleDateString()}</span>
+                        <span>
+                          {new Date(report.created_at).toLocaleDateString()}
+                        </span>
                         {report.photo_url && (
                           <>
                             <span>·</span>
-                            <span className="flex items-center gap-1"><FileText className="h-3 w-3" />Photo</span>
+                            <span className="flex items-center gap-1">
+                              <FileText className="h-3 w-3" />
+                              Photo
+                            </span>
                           </>
                         )}
                       </div>
@@ -328,11 +368,17 @@ export default function IncidentDetailPage() {
                 {aiAnalyses.map((analysis) => (
                   <div key={analysis.id} className="rounded-lg bg-accent/5 p-3">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-semibold text-accent">AI Analysis · {analysis.analysis_type}</span>
-                      <span className="text-xs text-muted-foreground">{analysis.model_version}</span>
+                      <span className="text-xs font-semibold text-accent">
+                        AI Analysis · {analysis.analysis_type}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {analysis.model_version}
+                      </span>
                     </div>
                     {analysis.explanation && (
-                      <p className="text-sm text-foreground leading-relaxed">{analysis.explanation}</p>
+                      <p className="text-sm text-foreground leading-relaxed">
+                        {analysis.explanation}
+                      </p>
                     )}
                     {analysis.confidence != null && (
                       <div className="mt-2 text-xs text-muted-foreground">
@@ -355,36 +401,47 @@ export default function IncidentDetailPage() {
             </CardHeader>
             <CardContent>
               {events.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No events recorded yet.</p>
+                <p className="text-sm text-muted-foreground">
+                  No events recorded yet.
+                </p>
               ) : (
                 <div className="space-y-3">
                   {events.map((event, i) => (
                     <div key={event.id} className="flex gap-3">
                       <div className="flex flex-col items-center">
-                        <div className={`flex h-8 w-8 items-center justify-center rounded-full shrink-0 ${
-                          event.new_status === 'resolved' ? 'bg-success/10' :
-                          event.new_status === 'rejected' ? 'bg-destructive/10' :
-                          'bg-accent/10'
-                        }`}>
-                          {event.new_status === 'resolved' ? (
+                        <div
+                          className={`flex h-8 w-8 items-center justify-center rounded-full shrink-0 ${
+                            event.new_status === "resolved"
+                              ? "bg-success/10"
+                              : event.new_status === "rejected"
+                                ? "bg-destructive/10"
+                                : "bg-accent/10"
+                          }`}
+                        >
+                          {event.new_status === "resolved" ? (
                             <CheckCircle2 className="h-4 w-4 text-success" />
-                          ) : event.new_status === 'rejected' ? (
+                          ) : event.new_status === "rejected" ? (
                             <XCircle className="h-4 w-4 text-destructive" />
                           ) : (
                             <Clock className="h-4 w-4 text-accent" />
                           )}
                         </div>
-                        {i < events.length - 1 && <div className="w-px h-6 bg-border mt-1" />}
+                        {i < events.length - 1 && (
+                          <div className="w-px h-6 bg-border mt-1" />
+                        )}
                       </div>
                       <div className="pb-3">
                         <div className="text-sm font-medium text-navy capitalize">
-                          {event.action.replace(/_/g, ' ')}
+                          {event.action.replace(/_/g, " ")}
                         </div>
                         {event.notes && (
-                          <div className="text-sm text-muted-foreground mt-0.5">{event.notes}</div>
+                          <div className="text-sm text-muted-foreground mt-0.5">
+                            {event.notes}
+                          </div>
                         )}
                         <div className="text-xs text-muted-foreground mt-1">
-                          {event.actor_name || 'System'} · {new Date(event.created_at).toLocaleString()}
+                          {event.actor_name || "System"} ·{" "}
+                          {new Date(event.created_at).toLocaleString()}
                         </div>
                       </div>
                     </div>
@@ -397,11 +454,142 @@ export default function IncidentDetailPage() {
 
         {/* Right: Actions */}
         <div className="space-y-6">
+          {["manager", "admin"].includes(profile?.role ?? "") && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Human priority review</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form
+                  className="space-y-3"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const { error } = await supabase.rpc(
+                      "update_civic_incident",
+                      {
+                        target: incident.id,
+                        priority: overridePriority,
+                        note: overrideReason,
+                      },
+                    );
+                    if (error) toast.error(error.message);
+                    else {
+                      toast.success("Priority override and reason recorded");
+                      setOverrideReason("");
+                      void fetchData();
+                    }
+                  }}
+                >
+                  <Label htmlFor="priorityOverride">
+                    Reviewed score (0–100)
+                  </Label>
+                  <input
+                    id="priorityOverride"
+                    className="border rounded p-2 bg-background w-full"
+                    type="number"
+                    min={0}
+                    max={100}
+                    required
+                    value={overridePriority}
+                    onChange={(e) =>
+                      setOverridePriority(Number(e.target.value))
+                    }
+                  />
+                  <Label htmlFor="priorityReason">Reason for override</Label>
+                  <Textarea
+                    id="priorityReason"
+                    minLength={5}
+                    maxLength={2000}
+                    required
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                  />
+                  <Button type="submit">Save reviewed priority</Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Private resolution evidence</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {evidence.map((e) => (
+                <div key={e.id}>
+                  <PrivateEvidence path={e.file_url} />
+                  <p className="text-sm">{e.description}</p>
+                </div>
+              ))}
+              {["operator", "manager", "admin"].includes(
+                profile?.role ?? "",
+              ) && (
+                <div>
+                  <Label htmlFor="resolutionPhoto">
+                    Attach image (JPEG / PNG / WebP, 5 MB)
+                  </Label>
+                  <input
+                    id="resolutionPhoto"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={evidenceBusy}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !incident) return;
+                      if (notes.trim().length < 5) {
+                        toast.error(
+                          "Enter an evidence description in the notes field first.",
+                        );
+                        return;
+                      }
+                      setEvidenceBusy(true);
+                      try {
+                        const form = new FormData();
+                        form.set("file", file);
+                        const response = await fetch("/api/evidence", {
+                          method: "POST",
+                          body: form,
+                        });
+                        const data = await response.json();
+                        if (!response.ok) throw new Error(data.error);
+                        const { error } = await supabase.rpc(
+                          "attach_civic_evidence",
+                          {
+                            target: incident.id,
+                            path: data.path,
+                            description: notes,
+                          },
+                        );
+                        if (error) throw error;
+                        toast.success("Evidence and audit record saved");
+                        void fetchData();
+                      } catch (err) {
+                        toast.error(
+                          err instanceof Error
+                            ? err.message
+                            : "Evidence failed",
+                        );
+                      } finally {
+                        setEvidenceBusy(false);
+                        e.target.value = "";
+                      }
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Describe the evidence in the notes field before uploading.
+                    Evidence is not exposed through public tracking.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
           {/* Status Change */}
           {isStaff && (
             <Card className="border-border/60">
               <CardHeader>
-                <CardTitle className="text-base text-navy">Update Status</CardTitle>
+                <CardTitle className="text-base text-navy">
+                  Update Status
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {allowedTransitions.length > 0 ? (
@@ -414,13 +602,17 @@ export default function IncidentDetailPage() {
                         </SelectTrigger>
                         <SelectContent>
                           {allowedTransitions.map((s) => (
-                            <SelectItem key={s} value={s}>{STATUS_CONFIG[s]?.label || s}</SelectItem>
+                            <SelectItem key={s} value={s}>
+                              {STATUS_CONFIG[s]?.label || s}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-xs">Notes (optional)</Label>
+                      <Label className="text-xs">
+                        Notes (required for resolution, rejection or reopening)
+                      </Label>
                       <Textarea
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
@@ -438,7 +630,8 @@ export default function IncidentDetailPage() {
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    No status transitions available from current state ({statusConfig?.label}).
+                    No status transitions available from current state (
+                    {statusConfig?.label}).
                   </p>
                 )}
               </CardContent>
@@ -457,7 +650,10 @@ export default function IncidentDetailPage() {
               <CardContent className="space-y-3">
                 {incident.assigned_department_id && (
                   <div className="text-sm text-muted-foreground">
-                    Currently: {departments.find((d) => d.id === incident.assigned_department_id)?.name || 'Unassigned'}
+                    Currently:{" "}
+                    {departments.find(
+                      (d) => d.id === incident.assigned_department_id,
+                    )?.name || "Unassigned"}
                   </div>
                 )}
                 <Select value={assignDept} onValueChange={setAssignDept}>
@@ -466,7 +662,9 @@ export default function IncidentDetailPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -485,29 +683,49 @@ export default function IncidentDetailPage() {
           {/* Meta Info */}
           <Card className="border-border/60">
             <CardHeader>
-              <CardTitle className="text-base text-navy">Incident Details</CardTitle>
+              <CardTitle className="text-base text-navy">
+                Incident Details
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center gap-1.5"><User className="h-3.5 w-3.5" />Reports</span>
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5" />
+                  Reports
+                </span>
                 <span className="font-medium">{incident.report_count}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />Created</span>
-                <span className="font-medium">{new Date(incident.created_at).toLocaleDateString()}</span>
+                <span className="text-muted-foreground flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5" />
+                  Created
+                </span>
+                <span className="font-medium">
+                  {new Date(incident.created_at).toLocaleDateString()}
+                </span>
               </div>
               {incident.sla_deadline && (
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5" />SLA Deadline</span>
-                  <span className={`font-medium ${new Date(incident.sla_deadline) < new Date() && incident.status !== 'resolved' ? 'text-destructive' : ''}`}>
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    SLA Deadline
+                  </span>
+                  <span
+                    className={`font-medium ${new Date(incident.sla_deadline) < new Date() && incident.status !== "resolved" ? "text-destructive" : ""}`}
+                  >
                     {new Date(incident.sla_deadline).toLocaleDateString()}
                   </span>
                 </div>
               )}
               {incident.resolved_at && (
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" />Resolved</span>
-                  <span className="font-medium">{new Date(incident.resolved_at).toLocaleDateString()}</span>
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Resolved
+                  </span>
+                  <span className="font-medium">
+                    {new Date(incident.resolved_at).toLocaleDateString()}
+                  </span>
                 </div>
               )}
             </CardContent>
