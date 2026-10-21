@@ -84,7 +84,7 @@
     "@netlify/plugin-nextjs": "^5.15.1"
   },
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=22.0.0"
   },
   "overrides": {
     "postcss": "$postcss",
