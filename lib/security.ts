@@ -15,8 +15,28 @@ export function safeRedirect(value: string | null, fallback = "/") {
     return fallback;
   }
 }
+export function publicOrigin(request: Request) {
+  const canonical = process.env.CIVICPULSE_APP_ORIGIN;
+  if (canonical) {
+    const url = new URL(canonical);
+    if (!["https:", "http:"].includes(url.protocol))
+      throw new Error("Invalid application origin");
+    return url.origin;
+  }
+  const internal = new URL(request.url);
+  // Next.js may normalize request.url to localhost. Host is the browser-facing
+  // authority; browser JavaScript cannot forge this forbidden request header.
+  // TLS-terminating deployments can set an explicit canonical origin above.
+  return new URL(
+    `${internal.protocol}//${request.headers.get("host") || internal.host}`,
+  ).origin;
+}
 export function sameOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  return !!origin && origin === new URL(request.url).origin;
+  try {
+    return !!origin && origin === publicOrigin(request);
+  } catch {
+    return false;
+  }
 }
 export const STAFF_ROLES = ["verifier", "operator", "manager", "admin"];

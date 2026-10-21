@@ -1,3 +1,4 @@
+import { publicOrigin } from "@/lib/security";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -18,7 +19,7 @@ export async function middleware(request: NextRequest) {
   if (!url || !key)
     return protectedRoute
       ? NextResponse.redirect(
-          new URL("/login?configuration=missing", request.url),
+          new URL("/login?configuration=missing", publicOrigin(request)),
         )
       : response;
   const client = createServerClient(url, key, {
@@ -38,7 +39,9 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await client.auth.getUser();
   const redirect = (target: string) => {
-    const result = NextResponse.redirect(new URL(target, request.url));
+    const result = NextResponse.redirect(
+      new URL(target, publicOrigin(request)),
+    );
     response.cookies.getAll().forEach((c) => result.cookies.set(c));
     return result;
   };

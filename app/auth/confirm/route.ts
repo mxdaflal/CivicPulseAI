@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { serverSupabase } from "@/lib/supabase/server";
-import { safeRedirect } from "@/lib/security";
+import { safeRedirect, publicOrigin } from "@/lib/security";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
@@ -9,10 +9,13 @@ export async function GET(request: Request) {
     const { error } = await client.auth.exchangeCodeForSession(code);
     if (!error)
       return NextResponse.redirect(
-        new URL(safeRedirect(url.searchParams.get("redirect")), url.origin),
+        new URL(
+          safeRedirect(url.searchParams.get("redirect")),
+          publicOrigin(request),
+        ),
       );
   }
   return NextResponse.redirect(
-    new URL("/login?error=confirmation", url.origin),
+    new URL("/login?error=confirmation", publicOrigin(request)),
   );
 }
