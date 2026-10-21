@@ -1,8 +1,8 @@
-import { CATEGORY_LIST } from './constants';
+import { CATEGORY_LIST } from "./constants";
 
 export type AIAnalysisResult = {
   suggested_category: string;
-  confidence: number;
+  confidence: number | null;
   priority_score: number;
   priority_label: string;
   priority_factors: {
@@ -18,24 +18,128 @@ export type AIAnalysisResult = {
 };
 
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  'Water Supply': ['water', 'pipe', 'tap', 'leak', 'supply', 'pressure', 'tank', 'drinking', 'burst', 'dry', 'flow'],
-  'Garbage Overflow': ['garbage', 'trash', 'waste', 'bin', 'overflow', 'dump', 'rubbish', 'litter', 'collection', 'smell', 'rotting'],
-  'Damaged Road': ['road', 'pothole', 'crack', 'damage', 'surface', 'asphalt', 'pavement', 'broken', 'hole', 'speed breaker'],
-  'Drainage Problem': ['drain', 'drainage', 'flood', 'waterlog', 'block', 'overflow', 'sewer', 'storm', 'monsoon', 'clog'],
-  'Streetlight Failure': ['streetlight', 'light', 'lamp', 'dark', 'pole', 'flicker', 'bulb', 'illumination', 'night', 'outage'],
-  'Public Transport': ['bus', 'transport', 'route', 'shelter', 'stop', 'schedule', 'delay', 'service', 'transit', 'fare'],
+  "Water Supply": [
+    "water",
+    "pipe",
+    "tap",
+    "leak",
+    "supply",
+    "pressure",
+    "tank",
+    "drinking",
+    "burst",
+    "dry",
+    "flow",
+  ],
+  "Garbage Overflow": [
+    "garbage",
+    "trash",
+    "waste",
+    "bin",
+    "overflow",
+    "dump",
+    "rubbish",
+    "litter",
+    "collection",
+    "smell",
+    "rotting",
+  ],
+  "Damaged Road": [
+    "road",
+    "pothole",
+    "crack",
+    "damage",
+    "surface",
+    "asphalt",
+    "pavement",
+    "broken",
+    "hole",
+    "speed breaker",
+  ],
+  "Drainage Problem": [
+    "drain",
+    "drainage",
+    "flood",
+    "waterlog",
+    "block",
+    "overflow",
+    "sewer",
+    "storm",
+    "monsoon",
+    "clog",
+  ],
+  "Streetlight Failure": [
+    "streetlight",
+    "light",
+    "lamp",
+    "dark",
+    "pole",
+    "flicker",
+    "bulb",
+    "illumination",
+    "night",
+    "outage",
+  ],
+  "Public Transport": [
+    "bus",
+    "transport",
+    "route",
+    "shelter",
+    "stop",
+    "schedule",
+    "delay",
+    "service",
+    "transit",
+    "fare",
+  ],
 };
 
-const URGENCY_KEYWORDS = ['urgent', 'emergency', 'danger', 'immediate', 'critical', 'serious', 'severe', 'safety', 'hazard', 'risk'];
-const IMPACT_KEYWORDS = ['many', 'everyone', 'whole', 'entire', 'all', 'community', 'neighborhood', 'street', 'families', 'children'];
-const VULNERABILITY_KEYWORDS = ['school', 'hospital', 'elderly', 'children', 'disability', 'disabled', 'clinic', 'pregnant', 'low income', 'slum'];
+const URGENCY_KEYWORDS = [
+  "urgent",
+  "emergency",
+  "danger",
+  "immediate",
+  "critical",
+  "serious",
+  "severe",
+  "safety",
+  "hazard",
+  "risk",
+];
+const IMPACT_KEYWORDS = [
+  "many",
+  "everyone",
+  "whole",
+  "entire",
+  "all",
+  "community",
+  "neighborhood",
+  "street",
+  "families",
+  "children",
+];
+const VULNERABILITY_KEYWORDS = [
+  "school",
+  "hospital",
+  "elderly",
+  "children",
+  "disability",
+  "disabled",
+  "clinic",
+  "pregnant",
+  "low income",
+  "slum",
+];
 
 function countKeywordMatches(text: string, keywords: string[]): number {
   const lower = text.toLowerCase();
   return keywords.filter((k) => lower.includes(k)).length;
 }
 
-function classifyCategory(title: string, description: string): { category: string; confidence: number } {
+function classifyCategory(
+  title: string,
+  description: string,
+): { category: string; confidence: number } {
   const text = `${title} ${description}`.toLowerCase();
   let bestMatch = CATEGORY_LIST[0];
   let bestScore = 0;
@@ -49,7 +153,8 @@ function classifyCategory(title: string, description: string): { category: strin
     }
   }
 
-  const confidence = bestScore === 0 ? 0.45 : Math.min(0.55 + bestScore * 0.12, 0.95);
+  const confidence =
+    bestScore === 0 ? 0.45 : Math.min(0.55 + bestScore * 0.12, 0.95);
   return { category: bestMatch, confidence };
 }
 
@@ -57,79 +162,103 @@ export function analyzeReport(
   title: string,
   description: string,
   locationText: string,
-  categoryName: string
+  categoryName: string,
 ): AIAnalysisResult {
   const text = `${title} ${description} ${locationText}`;
 
-  const { category: suggestedCategory, confidence } = classifyCategory(title, description);
+  const { category: suggestedCategory, confidence } = classifyCategory(
+    title,
+    description,
+  );
 
   const urgencyMatches = countKeywordMatches(text, URGENCY_KEYWORDS);
   const impactMatches = countKeywordMatches(text, IMPACT_KEYWORDS);
-  const vulnerabilityMatches = countKeywordMatches(text, VULNERABILITY_KEYWORDS);
+  const vulnerabilityMatches = countKeywordMatches(
+    text,
+    VULNERABILITY_KEYWORDS,
+  );
 
   const urgency = Math.min(30 + urgencyMatches * 20, 100);
   const impact = Math.min(30 + impactMatches * 20, 100);
-  const recurrence = 50; // Default, would be based on historical data
-  const vulnerability = Math.min(20 + vulnerabilityMatches * 25, 100);
+  const recurrence = 0; // Default, would be based on historical data
+  const vulnerability = Math.min(vulnerabilityMatches * 25, 100);
 
   const priorityScore = Math.round(
-    0.4 * urgency + 0.3 * impact + 0.2 * recurrence + 0.1 * vulnerability
+    0.4 * urgency + 0.3 * impact + 0.2 * recurrence + 0.1 * vulnerability,
   );
 
-  let priorityLabel = 'low';
-  if (priorityScore >= 80) priorityLabel = 'critical';
-  else if (priorityScore >= 60) priorityLabel = 'high';
-  else if (priorityScore >= 40) priorityLabel = 'medium';
+  let priorityLabel = "low";
+  if (priorityScore >= 80) priorityLabel = "critical";
+  else if (priorityScore >= 60) priorityLabel = "high";
+  else if (priorityScore >= 40) priorityLabel = "medium";
 
   const matchedCategory = suggestedCategory === categoryName;
   const explanationParts: string[] = [];
 
   if (matchedCategory) {
-    explanationParts.push(`AI confirms the category "${categoryName}" with ${Math.round(confidence * 100)}% confidence based on keyword analysis.`);
+    explanationParts.push(
+      `AI confirms the category "${categoryName}" with ${Math.round(confidence * 100)}% confidence based on keyword analysis.`,
+    );
   } else {
-    explanationParts.push(`AI suggests category "${suggestedCategory}" (${Math.round(confidence * 100)}% confidence) based on keyword analysis. The citizen selected "${categoryName}".`);
+    explanationParts.push(
+      `AI suggests category "${suggestedCategory}" (${Math.round(confidence * 100)}% confidence) based on keyword analysis. The citizen selected "${categoryName}".`,
+    );
   }
 
   explanationParts.push(
-    `Priority factors: Urgency ${urgency}/100, Impact ${impact}/100, Recurrence ${recurrence}/100, Vulnerability ${vulnerability}/100.`
+    `Priority factors: Urgency ${urgency}/100, Impact ${impact}/100, Recurrence ${recurrence}/100, Vulnerability ${vulnerability}/100.`,
   );
 
   if (urgencyMatches > 0) {
-    explanationParts.push(`Urgency keywords detected: ${urgencyMatches}. This may require faster response.`);
+    explanationParts.push(
+      `Urgency keywords detected: ${urgencyMatches}. This may require faster response.`,
+    );
   }
   if (vulnerabilityMatches > 0) {
-    explanationParts.push(`Vulnerability indicators found near sensitive locations.`);
+    explanationParts.push(
+      `Vulnerability indicators found near sensitive locations.`,
+    );
   }
 
   const keywords = CATEGORY_KEYWORDS[suggestedCategory] || [];
 
   return {
     suggested_category: suggestedCategory,
-    confidence,
+    confidence: null,
+    model_version: "rule-based-v2",
+    ai_powered: false,
     priority_score: priorityScore,
     priority_label: priorityLabel,
     priority_factors: { urgency, impact, recurrence, vulnerability },
-    explanation: explanationParts.join(' '),
+    explanation: `Rule-based analysis using report keywords, not model inference. Suggested category: ${suggestedCategory}. Urgency ${urgency}/100 and impact ${impact}/100 are unverified text signals with a baseline assumption of 30. Recurrence is unknown (0 contribution); vulnerability is an unverified text signal (${vulnerability}/100). No calibrated confidence or prediction is available.`,
     duplicate_keywords: keywords,
   };
 }
 
 export function generateTrackingId(): string {
-  const timestamp = Date.now().toString(36).toUpperCase().slice(-5);
-  const random = Math.random().toString(36).toUpperCase().slice(2, 5);
-  return `CP-${timestamp}${random}`;
+  return `CP-${crypto.randomUUID().replaceAll("-", "").toUpperCase()}`;
 }
 
 export function calculateSimilarity(
   text1: string,
   text2: string,
   category1: string,
-  category2: string
+  category2: string,
 ): number {
   if (category1 !== category2) return 0;
 
-  const words1 = new Set(text1.toLowerCase().split(/\s+/).filter((w) => w.length > 3));
-  const words2 = new Set(text2.toLowerCase().split(/\s+/).filter((w) => w.length > 3));
+  const words1 = new Set(
+    text1
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 3),
+  );
+  const words2 = new Set(
+    text2
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 3),
+  );
 
   if (words1.size === 0 || words2.size === 0) return 0;
 
@@ -137,4 +266,60 @@ export function calculateSimilarity(
   const union = new Set(Array.from(words1).concat(Array.from(words2)));
 
   return Math.round((intersection.size / union.size) * 100) / 100;
+}
+
+export function distanceKm(
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+) {
+  const rad = (x: number) => (x * Math.PI) / 180;
+  const h =
+    Math.sin(rad(b.latitude - a.latitude) / 2) ** 2 +
+    Math.cos(rad(a.latitude)) *
+      Math.cos(rad(b.latitude)) *
+      Math.sin(rad(b.longitude - a.longitude) / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+export function duplicateCandidates<
+  T extends {
+    id: string;
+    title: string;
+    category_name: string;
+    status: string;
+    latitude: number | null;
+    longitude: number | null;
+    created_at: string;
+  },
+>(
+  report: {
+    title: string;
+    description: string;
+    category_name: string;
+    latitude: number | null;
+    longitude: number | null;
+    created_at: string;
+  },
+  incidents: T[],
+) {
+  return incidents.filter(
+    (i) =>
+      i.category_name === report.category_name &&
+      !["resolved", "rejected"].includes(i.status) &&
+      Math.abs(Date.parse(i.created_at) - Date.parse(report.created_at)) <=
+        30 * 86400000 &&
+      report.latitude !== null &&
+      report.longitude !== null &&
+      i.latitude !== null &&
+      i.longitude !== null &&
+      distanceKm(
+        { latitude: report.latitude, longitude: report.longitude },
+        { latitude: i.latitude, longitude: i.longitude },
+      ) <= 1 &&
+      calculateSimilarity(
+        report.title + " " + report.description,
+        i.title,
+        report.category_name,
+        i.category_name,
+      ) >= 0.15,
+  );
 }

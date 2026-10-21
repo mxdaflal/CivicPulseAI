@@ -1,14 +1,18 @@
-import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-});
+export const supabaseConfigured = !!supabaseUrl && !!supabaseAnonKey;
+// Allow a clean build and a truthful configuration screen without invented credentials.
+export const supabase: SupabaseClient = supabaseConfigured
+  ? createBrowserClient(supabaseUrl, supabaseAnonKey)
+  : new Proxy({} as SupabaseClient, {
+      get() {
+        throw new Error("Supabase configuration is missing");
+      },
+    });
 
 export type Category = {
   id: string;
@@ -33,7 +37,7 @@ export type Report = {
   latitude: number | null;
   longitude: number | null;
   photo_url: string | null;
-  status: 'submitted' | 'verified' | 'linked' | 'rejected';
+  status: "submitted" | "verified" | "linked" | "rejected";
   priority_score: number;
   priority_label: string;
   ai_processed: boolean;
@@ -51,7 +55,14 @@ export type Incident = {
   location_text: string;
   latitude: number | null;
   longitude: number | null;
-  status: 'open' | 'verified' | 'assigned' | 'in_progress' | 'resolved' | 'rejected' | 'reopened';
+  status:
+    | "open"
+    | "verified"
+    | "assigned"
+    | "in_progress"
+    | "resolved"
+    | "rejected"
+    | "reopened";
   priority_score: number;
   priority_label: string;
   assigned_to: string | null;
@@ -112,7 +123,7 @@ export type Profile = {
   id: string;
   full_name: string;
   phone: string | null;
-  role: 'citizen' | 'verifier' | 'operator' | 'manager' | 'admin' | 'staff';
+  role: "citizen" | "verifier" | "operator" | "manager" | "admin" | "staff";
   department_id: string | null;
   preferred_language: string;
   notification_prefs: { email: boolean; push: boolean };
