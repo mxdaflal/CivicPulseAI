@@ -1,25 +1,35 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { toast } from 'sonner';
-import { Loader2, LogIn, Activity, Mail, Lock, ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { supabase } from '@/lib/supabase-client';
-import { useAuth } from '@/components/auth-provider';
+import { useState, useEffect } from "react";
+import { safeRedirect } from "@/lib/security";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { toast } from "sonner";
+import { Loader2, LogIn, Activity, Mail, Lock, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { supabase } from "@/lib/supabase-client";
+import { useAuth } from "@/components/auth-provider";
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
-  const redirect = searchParams.get('redirect') || '/';
+  const redirect = safeRedirect(
+    searchParams.get("redirect"),
+    "/citizen/dashboard",
+  );
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
 
@@ -32,17 +42,20 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      toast.error('Please enter your email and password.');
+      toast.error("Please enter your email and password.");
       return;
     }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
       if (error) throw error;
-      toast.success('Signed in successfully.');
+      toast.success("Signed in successfully.");
       router.push(redirect);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to sign in. Check your credentials.');
+      toast.error(err.message || "Failed to sign in. Check your credentials.");
     }
     setLoading(false);
   };
@@ -51,14 +64,17 @@ export default function LoginPage() {
     setOauthLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
+        provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`,
+          redirectTo: `${window.location.origin}/auth/confirm?redirect=${encodeURIComponent(redirect)}`,
         },
       });
       if (error) throw error;
     } catch (err: any) {
-      toast.error(err.message || 'Google sign-in failed. Make sure Google is enabled in your Supabase project settings.');
+      toast.error(
+        err.message ||
+          "Google sign-in failed. Make sure Google is enabled in your Supabase project settings.",
+      );
       setOauthLoading(false);
     }
   };
@@ -77,8 +93,12 @@ export default function LoginPage() {
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-navy text-white mb-4">
           <Activity className="h-6 w-6" />
         </div>
-        <h1 className="text-2xl font-bold text-navy">Sign in to CIVIC PULSE AI</h1>
-        <p className="mt-2 text-muted-foreground">Access your reports, dashboard, and notifications.</p>
+        <h1 className="text-2xl font-bold text-navy">
+          Sign in to CIVIC PULSE AI
+        </h1>
+        <p className="mt-2 text-muted-foreground">
+          Access your reports, dashboard, and notifications.
+        </p>
       </div>
 
       <Card className="border-border/60">
@@ -144,7 +164,11 @@ export default function LoginPage() {
                 />
               </div>
             </div>
-            <Button type="submit" disabled={loading || oauthLoading} className="w-full gap-2 bg-navy hover:bg-navy-light">
+            <Button
+              type="submit"
+              disabled={loading || oauthLoading}
+              className="w-full gap-2 bg-navy hover:bg-navy-light"
+            >
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -160,8 +184,11 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-6 text-center text-sm text-muted-foreground">
-            Don't have an account?{' '}
-            <Link href={`/signup?redirect=${encodeURIComponent(redirect)}`} className="font-medium text-accent hover:underline">
+            Need an account?{" "}
+            <Link
+              href={`/signup?redirect=${encodeURIComponent(redirect)}`}
+              className="font-medium text-accent hover:underline"
+            >
               Create one
             </Link>
           </div>

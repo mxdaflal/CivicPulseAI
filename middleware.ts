@@ -1,81 +1,70 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { publicOrigin } from "@/lib/security";
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
 
-const STAFF_ROLES = ['verifier', 'operator', 'manager', 'admin', 'staff'];
-
-// Supabase v2 stores session tokens in cookies named sb-<ref>-auth-token
-function hasSessionCookie(req: NextRequest): boolean {
-  return req.cookies.getAll().some((c) => c.name.includes('auth-token'));
+export async function middleware(request: NextRequest) {
+  let response = NextResponse.next({ request });
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const path = request.nextUrl.pathname;
+  const staff =
+    path.startsWith("/staff/dashboard") ||
+    path.startsWith("/dashboard") ||
+    path.startsWith("/incidents/") ||
+    path.startsWith("/admin");
+  const protectedRoute =
+    staff ||
+    path.startsWith("/citizen/dashboard") ||
+    path.startsWith("/profile");
+  if (!url || !key)
+    return protectedRoute
+      ? NextResponse.redirect(
+          new URL("/login?configuration=missing", publicOrigin(request)),
+        )
+      : response;
+  const client = createServerClient(url, key, {
+    cookies: {
+      getAll: () => request.cookies.getAll(),
+      setAll: (items) => {
+        items.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request });
+        items.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options),
+        );
+      },
+    },
+  });
+  // getUser verifies the token with Supabase Auth; cookie contents and metadata are untrusted.
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+  const redirect = (target: string) => {
+    const result = NextResponse.redirect(
+      new URL(target, publicOrigin(request)),
+    );
+    response.cookies.getAll().forEach((c) => result.cookies.set(c));
+    return result;
+  };
+  if (protectedRoute && !user)
+    return redirect(
+      `${staff ? "/staff/login" : "/citizen/login"}?redirect=${encodeURIComponent(path)}`,
+    );
+  if (staff && user) {
+    const { data } = await client
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    const roles = path.startsWith("/admin")
+      ? ["admin"]
+      : ["verifier", "operator", "manager", "admin"];
+    if (!data || !roles.includes(data.role))
+      return redirect("/citizen/dashboard");
+  }
+  if (protectedRoute)
+    response.headers.set("Cache-Control", "private, no-store");
+  return response;
 }
-
-// Extract the user's role from their JWT's app_metadata
-function getRoleFromCookie(req: NextRequest): string | null {
-  const cookie = req.cookies.getAll().find((c) => c.name.includes('auth-token'));
-  if (!cookie) return null;
-
-  try {
-    // The cookie value may be a JSON-encoded array [session] or a base64 string
-    let raw = cookie.value;
-    // Try parsing as JSON array (Supabase v2 format)
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        raw = parsed[0];
-      }
-    } catch {
-      // not JSON, use raw value
-    }
-
-    // JWT is header.payload.signature — decode payload
-    const parts = raw.split('.');
-    if (parts.length < 2) return null;
-
-    // Base64url decode the payload
-    const payload = Buffer.from(parts[1], 'base64').toString('utf-8');
-    const decoded = JSON.parse(payload);
-
-    // Role may be in user_metadata or app_metadata
-    const role =
-      decoded?.user_metadata?.role ||
-      decoded?.app_metadata?.role ||
-      decoded?.role ||
-      null;
-
-    return role;
-  } catch {
-    return null;
-  }
-}
-
-export function middleware(req: NextRequest) {
-  const pathname = req.nextUrl.pathname;
-
-  const isCitizenProtected =
-    pathname.startsWith('/citizen/') && !pathname.startsWith('/citizen/login');
-  const isStaffProtected =
-    pathname.startsWith('/staff/') && !pathname.startsWith('/staff/login');
-
-  if (!isCitizenProtected && !isStaffProtected) {
-    return NextResponse.next();
-  }
-
-  // No session cookie → redirect to appropriate login
-  if (!hasSessionCookie(req)) {
-    const loginUrl = pathname.startsWith('/staff/') ? '/staff/login' : '/citizen/login';
-    return NextResponse.redirect(new URL(loginUrl, req.url));
-  }
-
-  // Staff route role check (cookie-level check — full DB check happens client-side too)
-  if (isStaffProtected) {
-    const role = getRoleFromCookie(req);
-    if (role && !STAFF_ROLES.includes(role)) {
-      return NextResponse.redirect(new URL('/staff/login', req.url));
-    }
-  }
-
-  return NextResponse.next();
-}
-
 export const config = {
-  matcher: ['/citizen/:path*', '/staff/:path*'],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/).*)"],
 };

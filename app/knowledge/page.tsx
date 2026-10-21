@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   Search,
   Loader2,
@@ -10,29 +10,33 @@ import {
   Brain,
   Lightbulb,
   AlertCircle,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { supabase, KnowledgeDocument } from '@/lib/supabase-client';
-import { CATEGORY_COLORS } from '@/lib/constants';
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { supabase, KnowledgeDocument } from "@/lib/supabase-client";
+import { CATEGORY_COLORS } from "@/lib/constants";
 
 export default function KnowledgePage() {
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<KnowledgeDocument[] | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<
+    KnowledgeDocument[] | null
+  >(null);
   const [searching, setSearching] = useState(false);
-  const [selectedDoc, setSelectedDoc] = useState<KnowledgeDocument | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<KnowledgeDocument | null>(
+    null,
+  );
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
-        .from('knowledge_documents')
-        .select('*')
-        .eq('is_published', true)
-        .order('title');
+        .from("knowledge_documents")
+        .select("*")
+        .eq("is_published", true)
+        .order("title");
       setDocuments((data as KnowledgeDocument[]) || []);
       setLoading(false);
     })();
@@ -50,7 +54,7 @@ export default function KnowledgePage() {
         doc.title.toLowerCase().includes(q) ||
         doc.content.toLowerCase().includes(q) ||
         doc.tags?.some((t) => t.toLowerCase().includes(q)) ||
-        doc.category?.toLowerCase().includes(q)
+        doc.category?.toLowerCase().includes(q),
     );
     setSearchResults(results);
     setSearching(false);
@@ -74,7 +78,8 @@ export default function KnowledgePage() {
           Knowledge Base
         </h1>
         <p className="mt-1.5 text-muted-foreground">
-          Approved departmental procedures, service guidelines, and civic policies. Search for guidance on how specific issues are handled.
+          Approved departmental procedures, service guidelines, and civic
+          policies. Search for guidance on how specific issues are handled.
         </p>
       </div>
 
@@ -89,11 +94,19 @@ export default function KnowledgePage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search for procedures, guidelines, or policies..."
                 className="pl-10"
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
               />
             </div>
-            <Button onClick={handleSearch} disabled={searching} className="gap-2 bg-navy hover:bg-navy-light">
-              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            <Button
+              onClick={handleSearch}
+              disabled={searching}
+              className="gap-2 bg-navy hover:bg-navy-light"
+            >
+              {searching ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
               Search
             </Button>
             {searchResults !== null && (
@@ -101,7 +114,7 @@ export default function KnowledgePage() {
                 variant="outline"
                 onClick={() => {
                   setSearchResults(null);
-                  setSearchQuery('');
+                  setSearchQuery("");
                 }}
               >
                 Clear
@@ -110,7 +123,9 @@ export default function KnowledgePage() {
           </div>
           {searchResults !== null && (
             <p className="mt-3 text-sm text-muted-foreground">
-              Found {searchResults.length} document{searchResults.length !== 1 ? 's' : ''} matching "{searchQuery}"
+              Found {searchResults.length} document
+              {searchResults.length !== 1 ? "s" : ""} matching &quot;
+              {searchQuery}&quot;
             </p>
           )}
         </CardContent>
@@ -124,19 +139,23 @@ export default function KnowledgePage() {
               <AlertCircle className="h-7 w-7 text-muted-foreground" />
             </div>
             <h3 className="font-semibold text-navy">
-              {searchResults !== null ? 'No matching documents' : 'No documents available'}
+              {searchResults !== null
+                ? "No matching documents"
+                : "No documents available"}
             </h3>
             <p className="mt-2 text-sm text-muted-foreground">
               {searchResults !== null
-                ? 'Try a different search term.'
-                : 'Knowledge documents will appear here once they are published.'}
+                ? "Try a different search term."
+                : "Knowledge documents will appear here once they are published."}
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
           {displayedDocs.map((doc) => {
-            const color = doc.category ? CATEGORY_COLORS[doc.category] || '#3b82f6' : '#3b82f6';
+            const color = doc.category
+              ? CATEGORY_COLORS[doc.category] || "#3b82f6"
+              : "#3b82f6";
             return (
               <Card
                 key={doc.id}
@@ -152,7 +171,9 @@ export default function KnowledgePage() {
                       <FileText className="h-5 w-5" style={{ color }} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <CardTitle className="text-base text-navy">{doc.title}</CardTitle>
+                      <CardTitle className="text-base text-navy">
+                        {doc.title}
+                      </CardTitle>
                       {doc.category && (
                         <div className="mt-1">
                           <span
@@ -171,7 +192,9 @@ export default function KnowledgePage() {
                     {doc.content}
                   </p>
                   {doc.source && (
-                    <p className="mt-3 text-xs text-muted-foreground">Source: {doc.source}</p>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Source: {doc.source}
+                    </p>
                   )}
                 </CardContent>
               </Card>
@@ -195,18 +218,30 @@ export default function KnowledgePage() {
                 <div className="flex items-start gap-3">
                   <div
                     className="flex h-11 w-11 items-center justify-center rounded-lg shrink-0"
-                    style={{ backgroundColor: `${CATEGORY_COLORS[selectedDoc.category || ''] || '#3b82f6'}15` }}
+                    style={{
+                      backgroundColor: `${CATEGORY_COLORS[selectedDoc.category || ""] || "#3b82f6"}15`,
+                    }}
                   >
-                    <FileText className="h-5 w-5" style={{ color: CATEGORY_COLORS[selectedDoc.category || ''] || '#3b82f6' }} />
+                    <FileText
+                      className="h-5 w-5"
+                      style={{
+                        color:
+                          CATEGORY_COLORS[selectedDoc.category || ""] ||
+                          "#3b82f6",
+                      }}
+                    />
                   </div>
                   <div>
-                    <CardTitle className="text-lg text-navy">{selectedDoc.title}</CardTitle>
+                    <CardTitle className="text-lg text-navy">
+                      {selectedDoc.title}
+                    </CardTitle>
                     {selectedDoc.category && (
                       <span
                         className="inline-block mt-1 rounded-full px-2 py-0.5 text-xs font-medium"
                         style={{
-                          color: CATEGORY_COLORS[selectedDoc.category] || '#3b82f6',
-                          backgroundColor: `${CATEGORY_COLORS[selectedDoc.category] || '#3b82f6'}15`,
+                          color:
+                            CATEGORY_COLORS[selectedDoc.category] || "#3b82f6",
+                          backgroundColor: `${CATEGORY_COLORS[selectedDoc.category] || "#3b82f6"}15`,
                         }}
                       >
                         {selectedDoc.category}
@@ -214,13 +249,19 @@ export default function KnowledgePage() {
                     )}
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedDoc(null)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedDoc(null)}
+                >
                   Close
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{selectedDoc.content}</p>
+              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                {selectedDoc.content}
+              </p>
               {selectedDoc.source && (
                 <p className="mt-4 text-xs text-muted-foreground border-t border-border pt-3">
                   Source: {selectedDoc.source}

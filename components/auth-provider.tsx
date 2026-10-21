@@ -1,10 +1,16 @@
-'use client';
-
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { Session, User } from '@supabase/supabase-js';
-import { supabase, Profile } from '@/lib/supabase-client';
-
-type AuthContextType = {
+"use client";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import type { Session, User } from "@supabase/supabase-js";
+import { supabase, type Profile } from "@/lib/supabase-client";
+type AuthState = {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
@@ -12,8 +18,7 @@ type AuthContextType = {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
-
-const AuthContext = createContext<AuthContextType>({
+const AuthContext = createContext<AuthState>({
   user: null,
   session: null,
   profile: null,
@@ -21,81 +26,88 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   refreshProfile: async () => {},
 });
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchProfile = async (userId: string, retry = true) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-    if (data) {
-      setProfile(data as Profile);
-    } else if (retry) {
-      await new Promise((r) => setTimeout(r, 800));
-      await fetchProfile(userId, false);
-    } else {
+  const [user, setUser] = useState<User | null>(null),
+    [session, setSession] = useState<Session | null>(null),
+    [profile, setProfile] = useState<Profile | null>(null),
+    [loading, setLoading] = useState(true);
+  const generation = useRef(0);
+  const refreshProfile = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
       setProfile(null);
+      return;
     }
-  };
-
+    const { data } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+    setProfile(data as Profile | null);
+  }, []);
   useEffect(() => {
-    let mounted = true;
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id).finally(() => mounted && setLoading(false));
-      } else {
-        setLoading(false);
+    let active = true;
+    const sync = async (next: Session | null) => {
+      const current = ++generation.current;
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+        if (!active || current !== generation.current) return;
+        if (error || !user) {
+          setUser(null);
+          setSession(null);
+          setProfile(null);
+          return;
+        }
+        setUser(user);
+        setSession(next);
+        const { data } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single();
+        if (active && current === generation.current)
+          setProfile(data as Profile | null);
+      } catch {
+        if (active && current === generation.current) {
+          setUser(null);
+          setProfile(null);
+        }
+      } finally {
+        if (active && current === generation.current) setLoading(false);
       }
+    };
+    // Defer queries outside the Auth callback to avoid the auth client's session lock.
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, next) => {
+      setTimeout(() => {
+        if (active) void sync(next);
+      }, 0);
     });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        (async () => {
-          await fetchProfile(session.user.id);
-          setLoading(false);
-        })();
-      } else {
-        setProfile(null);
-        setLoading(false);
-      }
-    });
-
     return () => {
-      mounted = false;
-      listener.subscription.unsubscribe();
+      active = false;
+      subscription.unsubscribe();
     };
   }, []);
-
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setProfile(null);
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    ++generation.current;
     setUser(null);
     setSession(null);
+    setProfile(null);
   };
-
-  const refreshProfile = async () => {
-    if (user) await fetchProfile(user.id);
-  };
-
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signOut, refreshProfile }}>
+    <AuthContext.Provider
+      value={{ user, session, profile, loading, signOut, refreshProfile }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
-
-export function useAuth() {
-  return useContext(AuthContext);
-}
+export const useAuth = () => useContext(AuthContext);

@@ -1,23 +1,31 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { MapPin, Loader2, Navigation } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
-import { reverseGeocode, type AddressParts } from '@/lib/geocode';
+import { useState } from "react";
+import { MapPin, Loader2, Navigation } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { reverseGeocode, type AddressParts } from "@/lib/geocode";
 
 const DEFAULT_LOCATION: AddressParts = {
   lat: 10.8087,
   lon: 78.7491,
-  fullAddress: '',
+  fullAddress: "",
 };
 
-function LocationField({ label, value }: { label: string; value: string | undefined }) {
+function LocationField({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | undefined;
+}) {
   if (!value) return null;
   return (
     <div className="flex items-start gap-2 py-1.5">
-      <span className="text-xs font-medium text-muted-foreground w-28 shrink-0">{label}</span>
+      <span className="text-xs font-medium text-muted-foreground w-28 shrink-0">
+        {label}
+      </span>
       <span className="text-sm text-foreground font-medium">{value}</span>
     </div>
   );
@@ -30,52 +38,81 @@ export function LocationCard() {
 
   const [accuracy, setAccuracy] = useState<number | null>(null);
 
-  const fetchLocation = async (lat: number, lon: number, live: boolean, accuracyMeters?: number) => {
+  const fetchLocation = async (
+    lat: number,
+    lon: number,
+    live: boolean,
+    accuracyMeters?: number,
+  ) => {
     setAccuracy(accuracyMeters ?? null);
     try {
       const data = await reverseGeocode(lat, lon);
       setLocation(data);
       setIsLive(live);
-      const hasAddress = data.street || data.village || data.district || data.state || data.fullAddress;
+      const hasAddress =
+        data.street ||
+        data.village ||
+        data.district ||
+        data.state ||
+        data.fullAddress;
       if (!hasAddress) {
-        toast.info('Location updated, but no address details found for this area.');
+        toast.info(
+          "Location updated, but no address details found for this area.",
+        );
       } else if (accuracyMeters && accuracyMeters > 5000) {
-        toast.info('This location is approximate (based on your network). Accuracy: about ' + Math.round(accuracyMeters / 1000) + ' km.');
+        toast.info(
+          "This location is approximate (based on your network). Accuracy: about " +
+            Math.round(accuracyMeters / 1000) +
+            " km.",
+        );
       } else if (accuracyMeters && accuracyMeters > 1000) {
-        toast.info('Location accuracy: about ' + Math.round(accuracyMeters / 1000) + ' km.');
+        toast.info(
+          "Location accuracy: about " +
+            Math.round(accuracyMeters / 1000) +
+            " km.",
+        );
       }
     } catch (err) {
       setLocation((prev) => ({ ...prev, lat, lon }));
       setIsLive(live);
-      toast.error('Could not fetch address for this location. Please enter it manually.');
+      toast.error(
+        "Could not fetch address for this location. Please enter it manually.",
+      );
     }
   };
 
   const handleUseMyLocation = () => {
     if (!navigator.geolocation) {
-      toast.error('Geolocation is not supported by your browser.');
+      toast.error("Geolocation is not supported by your browser.");
       return;
     }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        fetchLocation(pos.coords.latitude, pos.coords.longitude, true, pos.coords.accuracy).finally(() => {
+        fetchLocation(
+          pos.coords.latitude,
+          pos.coords.longitude,
+          true,
+          pos.coords.accuracy,
+        ).finally(() => {
           setLocating(false);
         });
       },
       (err) => {
         setLocating(false);
         if (err.code === err.PERMISSION_DENIED) {
-          toast.error('Location permission denied. Please allow location access in your browser settings.');
+          toast.error(
+            "Location permission denied. Please allow location access in your browser settings.",
+          );
         } else if (err.code === err.POSITION_UNAVAILABLE) {
-          toast.error('Your location could not be determined.');
+          toast.error("Your location could not be determined.");
         } else if (err.code === err.TIMEOUT) {
-          toast.error('Location request timed out. Please try again.');
+          toast.error("Location request timed out. Please try again.");
         } else {
-          toast.error('Could not access your location.');
+          toast.error("Could not access your location.");
         }
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
     );
   };
 
@@ -94,13 +131,23 @@ export function LocationCard() {
             {isLive && (
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75" />
             )}
-            <span className={`relative inline-flex h-3 w-3 rounded-full ${isLive ? 'bg-green-500' : 'bg-muted-foreground'}`} />
+            <span
+              className={`relative inline-flex h-3 w-3 rounded-full ${isLive ? "bg-green-500" : "bg-muted-foreground"}`}
+            />
           </span>
-          <span className={`text-sm font-semibold ${isLive ? 'text-green-600' : 'text-muted-foreground'}`}>
-            {isLive ? 'Live Location' : 'Default Location'}
+          <span
+            className={`text-sm font-semibold ${isLive ? "text-green-600" : "text-muted-foreground"}`}
+          >
+            {isLive ? "Selected Location" : "Location not selected"}
           </span>
           {accuracy && (
-            <span className="text-xs text-muted-foreground">(±{accuracy >= 1000 ? Math.round(accuracy / 1000) + ' km' : Math.round(accuracy) + ' m'})</span>
+            <span className="text-xs text-muted-foreground">
+              (±
+              {accuracy >= 1000
+                ? Math.round(accuracy / 1000) + " km"
+                : Math.round(accuracy) + " m"}
+              )
+            </span>
           )}
           <span className="text-xs text-muted-foreground ml-auto font-mono">
             {location.lat.toFixed(5)}, {location.lon.toFixed(5)}
@@ -110,21 +157,30 @@ export function LocationCard() {
         {locating ? (
           <div className="flex items-center justify-center py-6">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-sm text-muted-foreground">Fetching address...</span>
+            <span className="ml-2 text-sm text-muted-foreground">
+              Fetching address...
+            </span>
           </div>
         ) : (
           <div className="rounded-lg border border-border bg-secondary/30 p-4 space-y-0.5">
-            <LocationField label="Street Number" value={location.streetNumber} />
+            <LocationField
+              label="Street Number"
+              value={location.streetNumber}
+            />
             <LocationField label="Street / Road" value={location.street} />
             <LocationField label="Village" value={location.village} />
             <LocationField label="District" value={location.district} />
             <LocationField label="State" value={location.state} />
             <LocationField label="Village PIN Code" value={location.pincode} />
-            {!location.street && !location.village && !location.district && !location.state && !location.fullAddress && (
-              <div className="py-2 text-sm text-muted-foreground text-center">
-                Click "Use My Live Location" to detect your address.
-              </div>
-            )}
+            {!location.street &&
+              !location.village &&
+              !location.district &&
+              !location.state &&
+              !location.fullAddress && (
+                <div className="py-2 text-sm text-muted-foreground text-center">
+                  Choose Use My Current Location to detect your address.
+                </div>
+              )}
           </div>
         )}
 
@@ -141,7 +197,7 @@ export function LocationCard() {
           ) : (
             <Navigation className="h-4 w-4" />
           )}
-          {locating ? 'Detecting your location...' : 'Use My Live Location'}
+          {locating ? "Detecting your location..." : "Use My Current Location"}
         </Button>
       </CardContent>
     </Card>

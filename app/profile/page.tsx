@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   Loader2,
   User,
@@ -14,23 +14,33 @@ import {
   Globe,
   Save,
   LogOut,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
-import { supabase, Report, Profile } from '@/lib/supabase-client';
-import { useAuth } from '@/components/auth-provider';
-import { STATUS_CONFIG, PRIORITY_CONFIG, CATEGORY_COLORS } from '@/lib/constants';
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { supabase, Report, Profile } from "@/lib/supabase-client";
+import { useAuth } from "@/components/auth-provider";
+import {
+  STATUS_CONFIG,
+  PRIORITY_CONFIG,
+  CATEGORY_COLORS,
+} from "@/lib/constants";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, profile, loading: authLoading, signOut, refreshProfile } = useAuth();
+  const {
+    user,
+    profile,
+    loading: authLoading,
+    signOut,
+    refreshProfile,
+  } = useAuth();
 
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [emailPref, setEmailPref] = useState(true);
   const [pushPref, setPushPref] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -39,33 +49,37 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push('/login?redirect=/profile');
+      router.push("/login?redirect=/profile");
     }
   }, [authLoading, user, router]);
 
   useEffect(() => {
-    if (profile) {
-      setFullName(profile.full_name);
-      setPhone(profile.phone || '');
-      setEmailPref(profile.notification_prefs?.email ?? true);
-      setPushPref(profile.notification_prefs?.push ?? true);
-    }
+    const timer = setTimeout(() => {
+      if (profile) {
+        setFullName(profile.full_name);
+        setPhone(profile.phone || "");
+        setEmailPref(profile.notification_prefs?.email ?? true);
+        setPushPref(profile.notification_prefs?.push ?? true);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [profile]);
 
   const fetchReports = useCallback(async () => {
     if (!user) return;
     setLoadingReports(true);
     const { data } = await supabase
-      .from('reports')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      .from("reports")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
     setReports((data as Report[]) || []);
     setLoadingReports(false);
   }, [user]);
 
   useEffect(() => {
-    fetchReports();
+    const timer = setTimeout(() => void fetchReports(), 0);
+    return () => clearTimeout(timer);
   }, [fetchReports]);
 
   const handleSave = async () => {
@@ -73,27 +87,27 @@ export default function ProfilePage() {
     setSaving(true);
     try {
       const { error } = await supabase
-        .from('profiles')
+        .from("profiles")
         .update({
           full_name: fullName,
           phone,
           notification_prefs: { email: emailPref, push: pushPref },
           updated_at: new Date().toISOString(),
         })
-        .eq('id', user.id);
+        .eq("id", user.id);
 
       if (error) throw error;
       await refreshProfile();
-      toast.success('Profile updated.');
+      toast.success("Profile updated.");
     } catch (err: any) {
-      toast.error(err.message || 'Failed to update profile.');
+      toast.error(err.message || "Failed to update profile.");
     }
     setSaving(false);
   };
 
   const handleSignOut = async () => {
     await signOut();
-    router.push('/');
+    router.push("/");
   };
 
   if (authLoading) {
@@ -108,7 +122,8 @@ export default function ProfilePage() {
     return null;
   }
 
-  const roleLabel = profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
+  const roleLabel =
+    profile.role.charAt(0).toUpperCase() + profile.role.slice(1);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
@@ -118,7 +133,8 @@ export default function ProfilePage() {
           My Profile
         </h1>
         <p className="mt-1.5 text-muted-foreground">
-          Manage your account, notification preferences, and view your report history.
+          Manage your account, notification preferences, and view your report
+          history.
         </p>
       </div>
 
@@ -128,9 +144,11 @@ export default function ProfilePage() {
           <Card className="border-border/60">
             <CardContent className="pt-6 text-center">
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-navy text-white text-2xl font-bold mb-4">
-                {fullName.charAt(0).toUpperCase() || 'U'}
+                {fullName.charAt(0).toUpperCase() || "U"}
               </div>
-              <h2 className="font-semibold text-navy text-lg">{fullName || 'User'}</h2>
+              <h2 className="font-semibold text-navy text-lg">
+                {fullName || "User"}
+              </h2>
               <p className="text-sm text-muted-foreground mt-1">{user.email}</p>
               <div className="mt-3">
                 <Badge variant="secondary">{roleLabel}</Badge>
@@ -186,7 +204,9 @@ export default function ProfilePage() {
                 <div className="flex items-center justify-between py-2">
                   <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 text-muted-foreground" />
-                    <Label htmlFor="emailPref" className="cursor-pointer">Email notifications</Label>
+                    <Label htmlFor="emailPref" className="cursor-pointer">
+                      Email notifications
+                    </Label>
                   </div>
                   <Switch
                     id="emailPref"
@@ -197,7 +217,9 @@ export default function ProfilePage() {
                 <div className="flex items-center justify-between py-2">
                   <div className="flex items-center gap-2">
                     <Bell className="h-4 w-4 text-muted-foreground" />
-                    <Label htmlFor="pushPref" className="cursor-pointer">Push notifications</Label>
+                    <Label htmlFor="pushPref" className="cursor-pointer">
+                      Push notifications
+                    </Label>
                   </div>
                   <Switch
                     id="pushPref"
@@ -207,7 +229,11 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <Button onClick={handleSave} disabled={saving} className="w-full gap-2 bg-navy hover:bg-navy-light">
+              <Button
+                onClick={handleSave}
+                disabled={saving}
+                className="w-full gap-2 bg-navy hover:bg-navy-light"
+              >
                 {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -238,12 +264,14 @@ export default function ProfilePage() {
                 </div>
               ) : reports.length === 0 ? (
                 <div className="py-8 text-center">
-                  <p className="text-sm text-muted-foreground">You haven't filed any reports yet.</p>
+                  <p className="text-sm text-muted-foreground">
+                    You have not filed any reports yet.
+                  </p>
                   <Button
                     variant="outline"
                     size="sm"
                     className="mt-3"
-                    onClick={() => router.push('/report')}
+                    onClick={() => router.push("/report")}
                   >
                     File a Report
                   </Button>
@@ -252,27 +280,40 @@ export default function ProfilePage() {
                 <div className="space-y-3">
                   {reports.map((report) => {
                     const statusConfig = STATUS_CONFIG[report.status];
-                    const priorityConfig = PRIORITY_CONFIG[report.priority_label];
-                    const color = CATEGORY_COLORS[report.category_name] || '#3b82f6';
+                    const priorityConfig =
+                      PRIORITY_CONFIG[report.priority_label];
+                    const color =
+                      CATEGORY_COLORS[report.category_name] || "#3b82f6";
                     return (
                       <div
                         key={report.id}
                         className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-secondary/50 transition-colors"
-                        onClick={() => router.push(`/track?id=${report.tracking_id}`)}
+                        onClick={() =>
+                          router.push(`/track?id=${report.tracking_id}`)
+                        }
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="font-medium text-navy text-sm truncate">{report.title}</div>
+                          <div className="font-medium text-navy text-sm truncate">
+                            {report.title}
+                          </div>
                           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                            <span className="font-mono">{report.tracking_id}</span>
+                            <span className="font-mono">
+                              {report.tracking_id}
+                            </span>
                             <span>·</span>
-                            <span>{new Date(report.created_at).toLocaleDateString()}</span>
+                            <span>
+                              {new Date(report.created_at).toLocaleDateString()}
+                            </span>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           {priorityConfig && (
                             <span
                               className="rounded-full px-2 py-0.5 text-xs font-semibold"
-                              style={{ color: priorityConfig.color, backgroundColor: priorityConfig.bg }}
+                              style={{
+                                color: priorityConfig.color,
+                                backgroundColor: priorityConfig.bg,
+                              }}
                             >
                               {priorityConfig.label}
                             </span>
@@ -280,7 +321,10 @@ export default function ProfilePage() {
                           {statusConfig && (
                             <span
                               className="rounded-full px-2 py-0.5 text-xs font-semibold"
-                              style={{ color: statusConfig.color, backgroundColor: statusConfig.bg }}
+                              style={{
+                                color: statusConfig.color,
+                                backgroundColor: statusConfig.bg,
+                              }}
                             >
                               {statusConfig.label}
                             </span>

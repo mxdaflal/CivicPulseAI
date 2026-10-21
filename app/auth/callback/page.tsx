@@ -1,24 +1,30 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Loader2, Activity } from 'lucide-react';
-import { supabase } from '@/lib/supabase-client';
+import { useEffect } from "react";
+import { safeRedirect } from "@/lib/security";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Loader2, Activity } from "lucide-react";
+import { supabase } from "@/lib/supabase-client";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') || '/';
+  const redirect = safeRedirect(
+    searchParams.get("redirect"),
+    "/citizen/dashboard",
+  );
 
   useEffect(() => {
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       if (session) {
         // Wait briefly for the profile trigger to complete, then redirect
         await new Promise((r) => setTimeout(r, 500));
         router.replace(redirect);
       } else {
-        router.replace('/login');
+        router.replace("/login");
       }
     })();
   }, [router, redirect]);
